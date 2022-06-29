@@ -1,0 +1,552 @@
++ [[ 1 == 1 ]]
++ bash -c 'echo -n '\''Clearing cache on '\'' && hostname && sync && sudo /sbin/sysctl vm.drop_caches=3'
+Clearing cache on h3c
+vm.drop_caches = 3
++ docker exec -it dlrm_hugectr python3 -c '
+from mlperf_logging.mllog import constants
+from mlperf_logger.utils import log_event
+log_event(key=constants.CACHE_CLEAR, value=True)'
+:::MLLOG {"namespace": "", "time_ms": 1655260314254, "event_type": "POINT_IN_TIME", "key": "cache_clear", "value": true, "metadata": {"file": "<string>", "lineno": 4}}
++ echo 'Beginning trial 5 of 5'
+Beginning trial 5 of 5
++ docker exec -it --env=BATCH_SIZE --env=CONFIG --env=CUDA_DEVICE_MAX_CONNECTIONS --env=DGXNGPU --env=DGXNNODES --env=DGXSYSTEM --env=MOUNTS --env=OMPI_MCA_btl --env=WALLTIME --env=DATADIR --env=DATASET_TYPE --env=DGXSYSTEM dlrm_hugectr bash ./run_and_time.sh
+++ date +%s
++ START_TIMESTAMP=1655260314
++ echo 'DLRM_BIND is set to "numactl --membind=0,1"'
+DLRM_BIND is set to "numactl --membind=0,1"
++ numactl --membind=0,1 python3 dgx_a100.py
++ tee /tmp/dlrm_hugectr.log
+[0.00, init_start, ]
+HugeCTR Version: 3.3
+====================================================Model Init=====================================================
+[HUGECTR][02:31:58][WARNING][RANK0]: The model name is not specified when creating the solver.
+[HUGECTR][02:31:58][INFO][RANK0]: Global seed is 3313416061
+[HUGECTR][02:31:59][INFO][RANK0]: Device to NUMA mapping:
+  GPU 0 ->  node 0
+  GPU 1 ->  node 0
+  GPU 2 ->  node 0
+  GPU 3 ->  node 0
+  GPU 4 ->  node 1
+  GPU 5 ->  node 1
+  GPU 6 ->  node 1
+  GPU 7 ->  node 1
+
+[HUGECTR][02:32:09][INFO][RANK0]: Start all2all warmup
+[HUGECTR][02:32:18][INFO][RANK0]: End all2all warmup
+[HUGECTR][02:32:18][INFO][RANK0]: Using All-reduce algorithm: OneShot
+[HUGECTR][02:32:18][INFO][RANK0]: Device 0: NVIDIA A100-SXM4-80GB
+[HUGECTR][02:32:18][INFO][RANK0]: Device 1: NVIDIA A100-SXM4-80GB
+[HUGECTR][02:32:18][INFO][RANK0]: Device 2: NVIDIA A100-SXM4-80GB
+[HUGECTR][02:32:18][INFO][RANK0]: Device 3: NVIDIA A100-SXM4-80GB
+[HUGECTR][02:32:18][INFO][RANK0]: Device 4: NVIDIA A100-SXM4-80GB
+[HUGECTR][02:32:18][INFO][RANK0]: Device 5: NVIDIA A100-SXM4-80GB
+[HUGECTR][02:32:18][INFO][RANK0]: Device 6: NVIDIA A100-SXM4-80GB
+[HUGECTR][02:32:18][INFO][RANK0]: Device 7: NVIDIA A100-SXM4-80GB
+[HUGECTR][02:32:18][INFO][RANK0]: AsyncReader: num_threads = 32
+[HUGECTR][02:32:18][INFO][RANK0]: AsyncReader: num_batches_per_thread = 4
+[HUGECTR][02:32:18][INFO][RANK0]: AsyncReader: io_block_size = 552960
+[HUGECTR][02:32:18][INFO][RANK0]: AsyncReader: io_depth = 2
+[HUGECTR][02:32:18][INFO][RANK0]: AsyncReader: io_alignment = 512
+[HUGECTR][02:32:18][INFO][RANK0]: AsyncReader: shuffle = ON
+[HUGECTR][02:32:18][INFO][RANK0]: AsyncReader: num_iterations_statistics = 20
+[HUGECTR][02:32:26][INFO][RANK0]: Using Hybrid Embedding with train batch 51200 and eval batch 1769472
+[HUGECTR][02:32:27][INFO][RANK0]: Graph analysis to resolve tensor dependency
+[HUGECTR][02:32:27][INFO][RANK0]: Save the model graph to dlrm.json successfully
+===================================================Model Compile===================================================
+[HUGECTR][02:33:05][INFO][RANK0]: Starting AUC NCCL warm-up
+[HUGECTR][02:33:05][INFO][RANK0]: Warm-up done
+[70681.32, init_end, ]
+[70681.36, run_start, ]
+[HUGECTR][02:33:09][INFO][RANK0]: Initializing Hybrid Embedding
+[HUGECTR][02:33:09][INFO][RANK0]: Initialized hybrid model with 31360 frequent categories, probability of being frequent is 0.892424
+[HUGECTR][02:33:09][INFO][RANK0]: Estimated number of infrequent categories per train batch: 143204, eval batch:  4949163
+===================================================Model Summary===================================================
+label                                   Dense                         Sparse                        
+label                                   dense                          data1                         
+(None, 1)                               (None, 16)                              
+——————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+Layer Type                              Input Name                    Output Name                   Output Shape                  
+——————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+HybridSparseEmbedding                   data1                         sparse_embedding1             (None, 26, 128)               
+------------------------------------------------------------------------------------------------------------------
+FusedInnerProduct                       dense                         fc11                          (None, 512)                   
+                                                                      fc12                          (None, 512)                   
+                                                                      fc13                          (None, 512)                   
+                                                                      fc14                          (None, 512)                   
+------------------------------------------------------------------------------------------------------------------
+FusedInnerProduct                       fc11                          fc21                          (None, 256)                   
+                                        fc12                          fc22                          (None, 256)                   
+                                        fc13                          fc23                          (None, 256)                   
+                                        fc14                          fc24                          (None, 256)                   
+------------------------------------------------------------------------------------------------------------------
+FusedInnerProduct                       fc21                          fc3                           (None, 128)                   
+                                        fc22                                                                                      
+                                        fc23                                                                                      
+                                        fc24                                                                                      
+------------------------------------------------------------------------------------------------------------------
+Interaction                             fc3                           interaction1                  (None, 480)                   
+                                        sparse_embedding1             interaction_grad              (None, 480)                   
+------------------------------------------------------------------------------------------------------------------
+FusedInnerProduct                       interaction1                  fc41                          (None, 1024)                  
+                                        interaction_grad              fc42                          (None, 1024)                  
+                                                                      fc43                          (None, 1024)                  
+                                                                      fc44                          (None, 1024)                  
+------------------------------------------------------------------------------------------------------------------
+FusedInnerProduct                       fc41                          fc51                          (None, 1024)                  
+                                        fc42                          fc52                          (None, 1024)                  
+                                        fc43                          fc53                          (None, 1024)                  
+                                        fc44                          fc54                          (None, 1024)                  
+------------------------------------------------------------------------------------------------------------------
+FusedInnerProduct                       fc51                          fc61                          (None, 512)                   
+                                        fc52                          fc62                          (None, 512)                   
+                                        fc53                          fc63                          (None, 512)                   
+                                        fc54                          fc64                          (None, 512)                   
+------------------------------------------------------------------------------------------------------------------
+FusedInnerProduct                       fc61                          fc71                          (None, 256)                   
+                                        fc62                          fc72                          (None, 256)                   
+                                        fc63                          fc73                          (None, 256)                   
+                                        fc64                          fc74                          (None, 256)                   
+------------------------------------------------------------------------------------------------------------------
+FusedInnerProduct                       fc71                          fc8                           (None, 1)                     
+                                        fc72                                                                                      
+                                        fc73                                                                                      
+                                        fc74                                                                                      
+------------------------------------------------------------------------------------------------------------------
+BinaryCrossEntropyLoss                  fc8                           loss                                                        
+                                        label                                                                                     
+------------------------------------------------------------------------------------------------------------------
+=====================================================Model Fit=====================================================
+[HUGECTR][02:33:09][INFO][RANK0]: Use non-epoch mode with number of iterations: 75868
+[HUGECTR][02:33:09][INFO][RANK0]: Training batchsize: 51200, evaluation batchsize: 1769472
+[HUGECTR][02:33:09][INFO][RANK0]: Evaluation interval: 3793, snapshot interval: 2000000
+[HUGECTR][02:33:09][INFO][RANK0]: Dense network trainable: True
+[HUGECTR][02:33:09][INFO][RANK0]: Sparse embedding sparse_embedding1 trainable: True
+[HUGECTR][02:33:09][INFO][RANK0]: Use mixed precision: True, scaler: 1024.000000, use cuda graph: False
+[HUGECTR][02:33:09][INFO][RANK0]: lr: 26.000000, warmup_steps: 2750, end_lr: 0.000000
+[HUGECTR][02:33:09][INFO][RANK0]: decay_start: 49315, decay_steps: 27772, decay_power: 2.000000
+[HUGECTR][02:33:09][INFO][RANK0]: Training source file: /raid/datasets/criteo/mlperf/40m.limit_preshuffled/train_data.bin
+[HUGECTR][02:33:09][INFO][RANK0]: Evaluation source file: /raid/datasets/criteo/mlperf/40m.limit_preshuffled/test_data.bin
+[70723.79, train_epoch_start, 0, ]
+[HUGECTR][02:33:11][INFO][RANK0]: Iter: 1000 Time(1000 iters): 1.991018s Loss: 0.000000
+[HUGECTR][02:33:12][INFO][RANK0]: Iter: 2000 Time(1000 iters): 1.269442s Loss: 0.000000
+[HUGECTR][02:33:14][INFO][RANK0]: Iter: 3000 Time(1000 iters): 1.268665s Loss: 0.000000
+[76261.85, eval_start, 0.0499947, ]
+[HUGECTR][02:33:15][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:15][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:15][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:15][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:15][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:15][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:15][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:15][INFO][RANK0]: Evaluation, AUC: 0.500184
+[76980.34, eval_accuracy, 0.500184, 0.0499947, 3793, ]
+[HUGECTR][02:33:15][INFO][RANK0]: Eval Time for 51 iters: 0.718495s
+[76980.35, eval_stop, 0.0499947, ]
+[HUGECTR][02:33:16][INFO][RANK0]: Iter: 4000 Time(1000 iters): 1.985832s Loss: 0.000000
+[HUGECTR][02:33:17][INFO][RANK0]: Iter: 5000 Time(1000 iters): 1.269423s Loss: 0.000000
+[HUGECTR][02:33:18][INFO][RANK0]: Iter: 6000 Time(1000 iters): 1.269105s Loss: 0.000000
+[HUGECTR][02:33:20][INFO][RANK0]: Iter: 7000 Time(1000 iters): 1.269085s Loss: 0.000000
+[81790.86, eval_start, 0.0999895, ]
+[HUGECTR][02:33:21][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:21][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:21][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:21][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:21][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:21][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:21][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:21][INFO][RANK0]: Evaluation, AUC: 0.500193
+[82259.25, eval_accuracy, 0.500193, 0.0999895, 7586, ]
+[HUGECTR][02:33:21][INFO][RANK0]: Eval Time for 51 iters: 0.468391s
+[82259.26, eval_stop, 0.0999895, ]
+[HUGECTR][02:33:21][INFO][RANK0]: Iter: 8000 Time(1000 iters): 1.734556s Loss: 0.000000
+[HUGECTR][02:33:23][INFO][RANK0]: Iter: 9000 Time(1000 iters): 1.271587s Loss: 0.000000
+[HUGECTR][02:33:24][INFO][RANK0]: Iter: 10000 Time(1000 iters): 1.270551s Loss: 0.000000
+[HUGECTR][02:33:25][INFO][RANK0]: Iter: 11000 Time(1000 iters): 1.272021s Loss: 0.000000
+[87077.43, eval_start, 0.149984, ]
+[HUGECTR][02:33:26][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:26][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:26][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:26][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:26][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:26][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:26][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:26][INFO][RANK0]: Evaluation, AUC: 0.500185
+[87545.62, eval_accuracy, 0.500185, 0.149984, 11379, ]
+[HUGECTR][02:33:26][INFO][RANK0]: Eval Time for 51 iters: 0.468188s
+[87545.63, eval_stop, 0.149984, ]
+[HUGECTR][02:33:27][INFO][RANK0]: Iter: 12000 Time(1000 iters): 1.736196s Loss: 0.000000
+[HUGECTR][02:33:28][INFO][RANK0]: Iter: 13000 Time(1000 iters): 1.271108s Loss: 0.000000
+[HUGECTR][02:33:29][INFO][RANK0]: Iter: 14000 Time(1000 iters): 1.270134s Loss: 0.000000
+[HUGECTR][02:33:31][INFO][RANK0]: Iter: 15000 Time(1000 iters): 1.270851s Loss: 0.000000
+[92362.20, eval_start, 0.199979, ]
+[HUGECTR][02:33:31][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:31][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:31][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:31][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:31][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:31][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:31][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:31][INFO][RANK0]: Evaluation, AUC: 0.500181
+[92830.48, eval_accuracy, 0.500181, 0.199979, 15172, ]
+[HUGECTR][02:33:31][INFO][RANK0]: Eval Time for 51 iters: 0.468296s
+[92830.50, eval_stop, 0.199979, ]
+[HUGECTR][02:33:32][INFO][RANK0]: Iter: 16000 Time(1000 iters): 1.734926s Loss: 0.000000
+[HUGECTR][02:33:34][INFO][RANK0]: Iter: 17000 Time(1000 iters): 1.270212s Loss: 0.000000
+[HUGECTR][02:33:35][INFO][RANK0]: Iter: 18000 Time(1000 iters): 1.269542s Loss: 0.000000
+[97644.87, eval_start, 0.249974, ]
+[HUGECTR][02:33:37][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:37][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:37][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:37][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:37][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:37][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:37][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:37][INFO][RANK0]: Evaluation, AUC: 0.500179
+[98113.24, eval_accuracy, 0.500179, 0.249974, 18965, ]
+[HUGECTR][02:33:37][INFO][RANK0]: Eval Time for 51 iters: 0.468384s
+[98113.25, eval_stop, 0.249974, ]
+[HUGECTR][02:33:37][INFO][RANK0]: Iter: 19000 Time(1000 iters): 1.735760s Loss: 0.000000
+[HUGECTR][02:33:38][INFO][RANK0]: Iter: 20000 Time(1000 iters): 1.269450s Loss: 0.000000
+[HUGECTR][02:33:39][INFO][RANK0]: Iter: 21000 Time(1000 iters): 1.269663s Loss: 0.000000
+[HUGECTR][02:33:40][INFO][RANK0]: Iter: 22000 Time(1000 iters): 1.271112s Loss: 0.000000
+[102926.38, eval_start, 0.299968, ]
+[HUGECTR][02:33:42][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:42][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:42][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:42][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:42][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:42][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:42][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:42][INFO][RANK0]: Evaluation, AUC: 0.500182
+[103394.76, eval_accuracy, 0.500182, 0.299968, 22758, ]
+[HUGECTR][02:33:42][INFO][RANK0]: Eval Time for 51 iters: 0.468390s
+[103394.77, eval_stop, 0.299968, ]
+[HUGECTR][02:33:42][INFO][RANK0]: Iter: 23000 Time(1000 iters): 1.734493s Loss: 0.000000
+[HUGECTR][02:33:43][INFO][RANK0]: Iter: 24000 Time(1000 iters): 1.269609s Loss: 0.000000
+[HUGECTR][02:33:45][INFO][RANK0]: Iter: 25000 Time(1000 iters): 1.270052s Loss: 0.000000
+[HUGECTR][02:33:46][INFO][RANK0]: Iter: 26000 Time(1000 iters): 1.269043s Loss: 0.000000
+[108207.64, eval_start, 0.349963, ]
+[HUGECTR][02:33:47][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:47][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:47][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:47][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:47][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:47][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:47][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:47][INFO][RANK0]: Evaluation, AUC: 0.500183
+[108675.96, eval_accuracy, 0.500183, 0.349963, 26551, ]
+[HUGECTR][02:33:47][INFO][RANK0]: Eval Time for 51 iters: 0.468325s
+[108675.97, eval_stop, 0.349963, ]
+[HUGECTR][02:33:48][INFO][RANK0]: Iter: 27000 Time(1000 iters): 1.735517s Loss: 0.000000
+[HUGECTR][02:33:49][INFO][RANK0]: Iter: 28000 Time(1000 iters): 1.272121s Loss: 0.000000
+[HUGECTR][02:33:50][INFO][RANK0]: Iter: 29000 Time(1000 iters): 1.270800s Loss: 0.000000
+[HUGECTR][02:33:52][INFO][RANK0]: Iter: 30000 Time(1000 iters): 1.271872s Loss: 0.000000
+[113495.99, eval_start, 0.399958, ]
+[HUGECTR][02:33:52][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:52][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:52][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:52][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:52][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:52][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:52][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:52][INFO][RANK0]: Evaluation, AUC: 0.500185
+[113964.18, eval_accuracy, 0.500185, 0.399958, 30344, ]
+[HUGECTR][02:33:52][INFO][RANK0]: Eval Time for 51 iters: 0.468199s
+[113964.19, eval_stop, 0.399958, ]
+[HUGECTR][02:33:53][INFO][RANK0]: Iter: 31000 Time(1000 iters): 1.735387s Loss: 0.000000
+[HUGECTR][02:33:55][INFO][RANK0]: Iter: 32000 Time(1000 iters): 1.270579s Loss: 0.000000
+[HUGECTR][02:33:56][INFO][RANK0]: Iter: 33000 Time(1000 iters): 1.269683s Loss: 0.000000
+[HUGECTR][02:33:57][INFO][RANK0]: Iter: 34000 Time(1000 iters): 1.269279s Loss: 0.000000
+[118777.43, eval_start, 0.449953, ]
+[HUGECTR][02:33:58][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:58][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:58][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:58][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:58][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:58][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:58][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:33:58][INFO][RANK0]: Evaluation, AUC: 0.500176
+[119245.45, eval_accuracy, 0.500176, 0.449953, 34137, ]
+[HUGECTR][02:33:58][INFO][RANK0]: Eval Time for 51 iters: 0.468031s
+[119245.46, eval_stop, 0.449953, ]
+[HUGECTR][02:33:59][INFO][RANK0]: Iter: 35000 Time(1000 iters): 1.734721s Loss: 0.000000
+[HUGECTR][02:34:00][INFO][RANK0]: Iter: 36000 Time(1000 iters): 1.270053s Loss: 0.000000
+[HUGECTR][02:34:01][INFO][RANK0]: Iter: 37000 Time(1000 iters): 1.270064s Loss: 0.000000
+[124059.94, eval_start, 0.499947, ]
+[HUGECTR][02:34:03][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:03][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:03][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:03][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:03][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:03][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:03][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:03][INFO][RANK0]: Evaluation, AUC: 0.500175
+[124528.05, eval_accuracy, 0.500175, 0.499947, 37930, ]
+[HUGECTR][02:34:03][INFO][RANK0]: Eval Time for 51 iters: 0.468118s
+[124528.07, eval_stop, 0.499947, ]
+[HUGECTR][02:34:03][INFO][RANK0]: Iter: 38000 Time(1000 iters): 1.735286s Loss: 0.000000
+[HUGECTR][02:34:04][INFO][RANK0]: Iter: 39000 Time(1000 iters): 1.269724s Loss: 0.000000
+[HUGECTR][02:34:06][INFO][RANK0]: Iter: 40000 Time(1000 iters): 1.268580s Loss: 0.000000
+[HUGECTR][02:34:07][INFO][RANK0]: Iter: 41000 Time(1000 iters): 1.268744s Loss: 0.000000
+[129339.89, eval_start, 0.549942, ]
+[HUGECTR][02:34:08][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:08][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:08][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:08][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:08][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:08][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:08][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:08][INFO][RANK0]: Evaluation, AUC: 0.500187
+[129808.24, eval_accuracy, 0.500187, 0.549942, 41723, ]
+[HUGECTR][02:34:08][INFO][RANK0]: Eval Time for 51 iters: 0.468359s
+[129808.25, eval_stop, 0.549942, ]
+[HUGECTR][02:34:09][INFO][RANK0]: Iter: 42000 Time(1000 iters): 1.736119s Loss: 0.000000
+[HUGECTR][02:34:10][INFO][RANK0]: Iter: 43000 Time(1000 iters): 1.271065s Loss: 0.000000
+[HUGECTR][02:34:11][INFO][RANK0]: Iter: 44000 Time(1000 iters): 1.269648s Loss: 0.000000
+[HUGECTR][02:34:12][INFO][RANK0]: Iter: 45000 Time(1000 iters): 1.269759s Loss: 0.000000
+[134623.07, eval_start, 0.599937, ]
+[HUGECTR][02:34:14][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:14][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:14][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:14][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:14][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:14][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:14][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:14][INFO][RANK0]: Evaluation, AUC: 0.500198
+[135091.31, eval_accuracy, 0.500198, 0.599937, 45516, ]
+[HUGECTR][02:34:14][INFO][RANK0]: Eval Time for 51 iters: 0.468250s
+[135091.32, eval_stop, 0.599937, ]
+[HUGECTR][02:34:14][INFO][RANK0]: Iter: 46000 Time(1000 iters): 1.735509s Loss: 0.000000
+[HUGECTR][02:34:15][INFO][RANK0]: Iter: 47000 Time(1000 iters): 1.271225s Loss: 0.000000
+[HUGECTR][02:34:17][INFO][RANK0]: Iter: 48000 Time(1000 iters): 1.269798s Loss: 0.000000
+[HUGECTR][02:34:18][INFO][RANK0]: Iter: 49000 Time(1000 iters): 1.270089s Loss: 0.000000
+[139906.34, eval_start, 0.649931, ]
+[HUGECTR][02:34:19][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:19][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:19][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:19][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:19][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:19][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:19][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:19][INFO][RANK0]: Evaluation, AUC: 0.500180
+[140374.62, eval_accuracy, 0.50018, 0.649931, 49309, ]
+[HUGECTR][02:34:19][INFO][RANK0]: Eval Time for 51 iters: 0.468292s
+[140374.64, eval_stop, 0.649931, ]
+[HUGECTR][02:34:20][INFO][RANK0]: Iter: 50000 Time(1000 iters): 1.735074s Loss: 0.000000
+[HUGECTR][02:34:21][INFO][RANK0]: Iter: 51000 Time(1000 iters): 1.269548s Loss: 0.000000
+[HUGECTR][02:34:22][INFO][RANK0]: Iter: 52000 Time(1000 iters): 1.270475s Loss: 0.000000
+[HUGECTR][02:34:24][INFO][RANK0]: Iter: 53000 Time(1000 iters): 1.272043s Loss: 0.000000
+[145190.52, eval_start, 0.699926, ]
+[HUGECTR][02:34:24][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:24][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:24][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:24][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:24][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:24][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:24][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:24][INFO][RANK0]: Evaluation, AUC: 0.500184
+[145659.08, eval_accuracy, 0.500184, 0.699926, 53102, ]
+[HUGECTR][02:34:24][INFO][RANK0]: Eval Time for 51 iters: 0.468573s
+[145659.09, eval_stop, 0.699926, ]
+[HUGECTR][02:34:25][INFO][RANK0]: Iter: 54000 Time(1000 iters): 1.735709s Loss: 0.000000
+[HUGECTR][02:34:27][INFO][RANK0]: Iter: 55000 Time(1000 iters): 1.271046s Loss: 0.000000
+[HUGECTR][02:34:28][INFO][RANK0]: Iter: 56000 Time(1000 iters): 1.272811s Loss: 0.000000
+[150479.99, eval_start, 0.749921, ]
+[HUGECTR][02:34:29][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:29][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:29][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:29][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:29][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:29][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:29][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:29][INFO][RANK0]: Evaluation, AUC: 0.500178
+[150948.39, eval_accuracy, 0.500178, 0.749921, 56895, ]
+[HUGECTR][02:34:29][INFO][RANK0]: Eval Time for 51 iters: 0.468408s
+[150948.41, eval_stop, 0.749921, ]
+[HUGECTR][02:34:30][INFO][RANK0]: Iter: 57000 Time(1000 iters): 1.737379s Loss: 0.000000
+[HUGECTR][02:34:31][INFO][RANK0]: Iter: 58000 Time(1000 iters): 1.269660s Loss: 0.000000
+[HUGECTR][02:34:32][INFO][RANK0]: Iter: 59000 Time(1000 iters): 1.269397s Loss: 0.000000
+[HUGECTR][02:34:33][INFO][RANK0]: Iter: 60000 Time(1000 iters): 1.269328s Loss: 0.000000
+[155759.85, eval_start, 0.799916, ]
+[HUGECTR][02:34:35][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:35][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:35][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:35][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:35][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:35][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:35][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:35][INFO][RANK0]: Evaluation, AUC: 0.500177
+[156228.36, eval_accuracy, 0.500177, 0.799916, 60688, ]
+[HUGECTR][02:34:35][INFO][RANK0]: Eval Time for 51 iters: 0.468514s
+[156228.37, eval_stop, 0.799916, ]
+[HUGECTR][02:34:35][INFO][RANK0]: Iter: 61000 Time(1000 iters): 1.734541s Loss: 0.000000
+[HUGECTR][02:34:36][INFO][RANK0]: Iter: 62000 Time(1000 iters): 1.269722s Loss: 0.000000
+[HUGECTR][02:34:38][INFO][RANK0]: Iter: 63000 Time(1000 iters): 1.269087s Loss: 0.000000
+[HUGECTR][02:34:39][INFO][RANK0]: Iter: 64000 Time(1000 iters): 1.271999s Loss: 0.000000
+[161043.14, eval_start, 0.84991, ]
+[HUGECTR][02:34:40][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:40][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:40][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:40][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:40][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:40][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:40][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:40][INFO][RANK0]: Evaluation, AUC: 0.500184
+[161511.62, eval_accuracy, 0.500184, 0.84991, 64481, ]
+[HUGECTR][02:34:40][INFO][RANK0]: Eval Time for 51 iters: 0.468491s
+[161511.64, eval_stop, 0.84991, ]
+[HUGECTR][02:34:41][INFO][RANK0]: Iter: 65000 Time(1000 iters): 1.735766s Loss: 0.000000
+[HUGECTR][02:34:42][INFO][RANK0]: Iter: 66000 Time(1000 iters): 1.271624s Loss: 0.000000
+[HUGECTR][02:34:43][INFO][RANK0]: Iter: 67000 Time(1000 iters): 1.270826s Loss: 0.000000
+[HUGECTR][02:34:44][INFO][RANK0]: Iter: 68000 Time(1000 iters): 1.271326s Loss: 0.000000
+[166329.98, eval_start, 0.899905, ]
+[HUGECTR][02:34:45][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:45][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:45][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:45][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:45][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:45][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:45][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:45][INFO][RANK0]: Evaluation, AUC: 0.500192
+[166798.31, eval_accuracy, 0.500192, 0.899905, 68274, ]
+[HUGECTR][02:34:45][INFO][RANK0]: Eval Time for 51 iters: 0.468338s
+[166798.33, eval_stop, 0.899905, ]
+[HUGECTR][02:34:46][INFO][RANK0]: Iter: 69000 Time(1000 iters): 1.735611s Loss: 0.000000
+[HUGECTR][02:34:47][INFO][RANK0]: Iter: 70000 Time(1000 iters): 1.270139s Loss: 0.000000
+[HUGECTR][02:34:49][INFO][RANK0]: Iter: 71000 Time(1000 iters): 1.269859s Loss: 0.000000
+[HUGECTR][02:34:50][INFO][RANK0]: Iter: 72000 Time(1000 iters): 1.269293s Loss: 0.000000
+[171612.00, eval_start, 0.9499, ]
+[HUGECTR][02:34:51][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:51][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:51][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:51][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:51][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:51][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:51][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:51][INFO][RANK0]: Evaluation, AUC: 0.500193
+[172080.16, eval_accuracy, 0.500193, 0.9499, 72067, ]
+[HUGECTR][02:34:51][INFO][RANK0]: Eval Time for 51 iters: 0.468171s
+[172080.17, eval_stop, 0.9499, ]
+[HUGECTR][02:34:52][INFO][RANK0]: Iter: 73000 Time(1000 iters): 1.735397s Loss: 0.000000
+[HUGECTR][02:34:53][INFO][RANK0]: Iter: 74000 Time(1000 iters): 1.268577s Loss: 0.000000
+[HUGECTR][02:34:54][INFO][RANK0]: Iter: 75000 Time(1000 iters): 1.269599s Loss: 0.000000
+[176891.72, eval_start, 0.999895, ]
+[HUGECTR][02:34:56][INFO][RANK0]: GPU 0 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:56][INFO][RANK0]: GPU 1 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:56][INFO][RANK0]: GPU 3 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:56][INFO][RANK0]: GPU 2 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:56][INFO][RANK0]: GPU 4 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:56][INFO][RANK0]: GPU 5 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:56][INFO][RANK0]: GPU 6 has no samples in the AUC computation due to strongly uneven distribution of the scores. This may indicate a problem in the training or an extremely accurate model.
+[HUGECTR][02:34:56][INFO][RANK0]: Evaluation, AUC: 0.500198
+[177359.99, eval_accuracy, 0.500198, 0.999895, 75860, ]
+[HUGECTR][02:34:56][INFO][RANK0]: Eval Time for 51 iters: 0.468275s
+[177360.01, eval_stop, 0.999895, ]
+[177365.56, train_epoch_end, 1, ]
+[177365.57, run_stop, ]
+[177365.57, train_samples, 3884441600, ]
+Finish 75868 iterations with batchsize: 51200 in 106.64s
++ python3 -m mlperf_logger.format_ctr_output --log_path /tmp/dlrm_hugectr.log --config_file dlrm.json --start_timestamp 1655260314
+:::MLLOG {"namespace": "", "time_ms": 1655260502694, "event_type": "POINT_IN_TIME", "key": "submission_benchmark", "value": "dlrm", "metadata": {"file": "/workspace/dlrm/mlperf_logger/utils.py", "lineno": 52}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502700, "event_type": "POINT_IN_TIME", "key": "submission_org", "value": "H3C", "metadata": {"file": "/workspace/dlrm/mlperf_logger/utils.py", "lineno": 57}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502700, "event_type": "POINT_IN_TIME", "key": "submission_division", "value": "closed", "metadata": {"file": "/workspace/dlrm/mlperf_logger/utils.py", "lineno": 61}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502700, "event_type": "POINT_IN_TIME", "key": "submission_status", "value": "onprem", "metadata": {"file": "/workspace/dlrm/mlperf_logger/utils.py", "lineno": 65}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502700, "event_type": "POINT_IN_TIME", "key": "submission_platform", "value": "1xSUBMISSION_PLATFORM_PLACEHOLDER", "metadata": {"file": "/workspace/dlrm/mlperf_logger/utils.py", "lineno": 69}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502700, "event_type": "POINT_IN_TIME", "key": "eval_samples", "value": 89137319, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 37}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502700, "event_type": "POINT_IN_TIME", "key": "global_batch_size", "value": 51200, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 39}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502700, "event_type": "POINT_IN_TIME", "key": "opt_base_learning_rate", "value": 26.0, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 41}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502700, "event_type": "POINT_IN_TIME", "key": "sgd_opt_base_learning_rate", "value": 26.0, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 43}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502700, "event_type": "POINT_IN_TIME", "key": "sgd_opt_learning_rate_decay_poly_power", "value": 2.0, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 45}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502701, "event_type": "POINT_IN_TIME", "key": "opt_learning_rate_warmup_steps", "value": 2750, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 47}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502701, "event_type": "POINT_IN_TIME", "key": "opt_learning_rate_warmup_factor", "value": 0.0, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 49}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502701, "event_type": "POINT_IN_TIME", "key": "lr_decay_start_steps", "value": 49315, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 51}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502701, "event_type": "POINT_IN_TIME", "key": "sgd_opt_learning_rate_decay_steps", "value": 27772, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 53}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502701, "event_type": "POINT_IN_TIME", "key": "gradient_accumulation_steps", "value": 1, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 55}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502701, "event_type": "POINT_IN_TIME", "key": "weights_initialization", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 66, "tensor": "embeddings"}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502701, "event_type": "POINT_IN_TIME", "key": "weights_initialization", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 66, "tensor": "bottom_mlp_dense1"}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502701, "event_type": "POINT_IN_TIME", "key": "weights_initialization", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 66, "tensor": "bottom_mlp_dense2"}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502701, "event_type": "POINT_IN_TIME", "key": "weights_initialization", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 66, "tensor": "bottom_mlp_dense3"}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502701, "event_type": "POINT_IN_TIME", "key": "weights_initialization", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 66, "tensor": "top_mlp_dense1"}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502701, "event_type": "POINT_IN_TIME", "key": "weights_initialization", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 66, "tensor": "top_mlp_dense2"}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502701, "event_type": "POINT_IN_TIME", "key": "weights_initialization", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 66, "tensor": "top_mlp_dense3"}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502701, "event_type": "POINT_IN_TIME", "key": "weights_initialization", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 66, "tensor": "top_mlp_dense4"}}
+:::MLLOG {"namespace": "", "time_ms": 1655260502701, "event_type": "POINT_IN_TIME", "key": "weights_initialization", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 66, "tensor": "top_mlp_dense5"}}
+:::MLLOG {"namespace": "", "time_ms": 1655260314000, "event_type": "INTERVAL_START", "key": "init_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158}}
+:::MLLOG {"namespace": "", "time_ms": 1655260384681, "event_type": "INTERVAL_END", "key": "init_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158}}
+:::MLLOG {"namespace": "", "time_ms": 1655260384681, "event_type": "INTERVAL_START", "key": "run_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158}}
+:::MLLOG {"namespace": "", "time_ms": 1655260384723, "event_type": "INTERVAL_START", "key": "epoch_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1}}
+:::MLLOG {"namespace": "", "time_ms": 1655260390261, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.0499947}}
+:::MLLOG {"namespace": "", "time_ms": 1655260390980, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.500184, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.0499947}}
+:::MLLOG {"namespace": "", "time_ms": 1655260390980, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.0499947}}
+:::MLLOG {"namespace": "", "time_ms": 1655260395790, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.0999895}}
+:::MLLOG {"namespace": "", "time_ms": 1655260396259, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.500193, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.0999895}}
+:::MLLOG {"namespace": "", "time_ms": 1655260396259, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.0999895}}
+:::MLLOG {"namespace": "", "time_ms": 1655260401077, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.149984}}
+:::MLLOG {"namespace": "", "time_ms": 1655260401545, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.500185, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.149984}}
+:::MLLOG {"namespace": "", "time_ms": 1655260401545, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.149984}}
+:::MLLOG {"namespace": "", "time_ms": 1655260406362, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.199979}}
+:::MLLOG {"namespace": "", "time_ms": 1655260406830, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.500181, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.199979}}
+:::MLLOG {"namespace": "", "time_ms": 1655260406830, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.199979}}
+:::MLLOG {"namespace": "", "time_ms": 1655260411644, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.249974}}
+:::MLLOG {"namespace": "", "time_ms": 1655260412113, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.500179, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.249974}}
+:::MLLOG {"namespace": "", "time_ms": 1655260412113, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.249974}}
+:::MLLOG {"namespace": "", "time_ms": 1655260416926, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.299968}}
+:::MLLOG {"namespace": "", "time_ms": 1655260417394, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.500182, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.299968}}
+:::MLLOG {"namespace": "", "time_ms": 1655260417394, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.299968}}
+:::MLLOG {"namespace": "", "time_ms": 1655260422207, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.349963}}
+:::MLLOG {"namespace": "", "time_ms": 1655260422675, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.500183, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.349963}}
+:::MLLOG {"namespace": "", "time_ms": 1655260422675, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.349963}}
+:::MLLOG {"namespace": "", "time_ms": 1655260427495, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.399958}}
+:::MLLOG {"namespace": "", "time_ms": 1655260427964, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.500185, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.399958}}
+:::MLLOG {"namespace": "", "time_ms": 1655260427964, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.399958}}
+:::MLLOG {"namespace": "", "time_ms": 1655260432777, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.449953}}
+:::MLLOG {"namespace": "", "time_ms": 1655260433245, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.500176, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.449953}}
+:::MLLOG {"namespace": "", "time_ms": 1655260433245, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.449953}}
+:::MLLOG {"namespace": "", "time_ms": 1655260438059, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.499947}}
+:::MLLOG {"namespace": "", "time_ms": 1655260438528, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.500175, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.499947}}
+:::MLLOG {"namespace": "", "time_ms": 1655260438528, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.499947}}
+:::MLLOG {"namespace": "", "time_ms": 1655260443339, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.5499420000000002}}
+:::MLLOG {"namespace": "", "time_ms": 1655260443808, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.500187, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.5499420000000002}}
+:::MLLOG {"namespace": "", "time_ms": 1655260443808, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.5499420000000002}}
+:::MLLOG {"namespace": "", "time_ms": 1655260448623, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.5999370000000002}}
+:::MLLOG {"namespace": "", "time_ms": 1655260449091, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.500198, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.5999370000000002}}
+:::MLLOG {"namespace": "", "time_ms": 1655260449091, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.5999370000000002}}
+:::MLLOG {"namespace": "", "time_ms": 1655260453906, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.649931}}
+:::MLLOG {"namespace": "", "time_ms": 1655260454374, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.50018, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.649931}}
+:::MLLOG {"namespace": "", "time_ms": 1655260454374, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.649931}}
+:::MLLOG {"namespace": "", "time_ms": 1655260459190, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.699926}}
+:::MLLOG {"namespace": "", "time_ms": 1655260459659, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.500184, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.699926}}
+:::MLLOG {"namespace": "", "time_ms": 1655260459659, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.699926}}
+:::MLLOG {"namespace": "", "time_ms": 1655260464479, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.749921}}
+:::MLLOG {"namespace": "", "time_ms": 1655260464948, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.500178, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.749921}}
+:::MLLOG {"namespace": "", "time_ms": 1655260464948, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.749921}}
+:::MLLOG {"namespace": "", "time_ms": 1655260469759, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.799916}}
+:::MLLOG {"namespace": "", "time_ms": 1655260470228, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.500177, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.799916}}
+:::MLLOG {"namespace": "", "time_ms": 1655260470228, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.799916}}
+:::MLLOG {"namespace": "", "time_ms": 1655260475043, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.84991}}
+:::MLLOG {"namespace": "", "time_ms": 1655260475511, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.500184, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.84991}}
+:::MLLOG {"namespace": "", "time_ms": 1655260475511, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.84991}}
+:::MLLOG {"namespace": "", "time_ms": 1655260480329, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.899905}}
+:::MLLOG {"namespace": "", "time_ms": 1655260480798, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.500192, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.899905}}
+:::MLLOG {"namespace": "", "time_ms": 1655260480798, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.899905}}
+:::MLLOG {"namespace": "", "time_ms": 1655260485612, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.9499}}
+:::MLLOG {"namespace": "", "time_ms": 1655260486080, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.500193, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.9499}}
+:::MLLOG {"namespace": "", "time_ms": 1655260486080, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.9499}}
+:::MLLOG {"namespace": "", "time_ms": 1655260490891, "event_type": "INTERVAL_START", "key": "eval_start", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.999895}}
+:::MLLOG {"namespace": "", "time_ms": 1655260491359, "event_type": "POINT_IN_TIME", "key": "eval_accuracy", "value": 0.500198, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.999895}}
+:::MLLOG {"namespace": "", "time_ms": 1655260491360, "event_type": "INTERVAL_END", "key": "eval_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 1.999895}}
+:::MLLOG {"namespace": "", "time_ms": 1655260491365, "event_type": "INTERVAL_END", "key": "epoch_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "epoch_num": 2}}
+:::MLLOG {"namespace": "", "time_ms": 1655260491365, "event_type": "INTERVAL_END", "key": "run_stop", "value": null, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158, "status": "aborted"}}
+:::MLLOG {"namespace": "", "time_ms": 1655260491365, "event_type": "POINT_IN_TIME", "key": "train_samples", "value": 3884441600, "metadata": {"file": "/workspace/dlrm/mlperf_logger/format_ctr_output.py", "lineno": 158}}
++ ret_code=0
++ sleep 3
++ [[ 0 != 0 ]]
++ readonly node_rank=0
++ node_rank=0
++ readonly local_rank=
++ local_rank=
++ '[' 0 -eq 0 ']'
++ '[' '' -eq 0 ']'
+./run_and_time.sh: line 42: [: : integer expression expected
++ echo RESULT,DLRM,,
+RESULT,DLRM,,

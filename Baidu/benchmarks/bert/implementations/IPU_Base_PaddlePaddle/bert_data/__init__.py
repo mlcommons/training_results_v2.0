@@ -1,0 +1,4 @@
+# Copyright (c) 2019 Graphcore Ltd. All rights reserved.
+
+from .pretraining_dataset import get_bert_dataset as get_pretraining_dataset
+from .packed_pretraining_dataset import get_bert_dataset as get_packed_pretraining_dataset

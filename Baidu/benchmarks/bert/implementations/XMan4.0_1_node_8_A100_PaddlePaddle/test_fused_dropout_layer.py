@@ -1,0 +1,146 @@
+# Copyright (c) 2021 PaddlePaddle Authors. All Rights Reserved.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import argparse
+import collections
+import itertools
+import os
+import random
+import time
+import h5py
+import json
+from functools import partial
+from concurrent.futures import ThreadPoolExecutor
+
+import numpy as np
+import distutils.util
+
+import paddle
+import paddle.nn as nn
+import paddle.distributed.fleet as fleet
+from paddle.io import DataLoader, Dataset
+from paddle.static import Program, program_guard
+
+from models.utils.tools import TimeCostAverage
+from mlperf_logging.mllog import constants
+from bert_utils.mlperf_logging_helper import paddle_bert_print_start, paddle_bert_print_end, paddle_bert_print_event
+import bert_utils.utility as utility
+
+from models.modeling import FusedDropoutResidualLn
+from models.modeling import BertConfig
+
+x_type = np.float16
+
+batch_size = 8
+max_seq_len = 512
+embed_dim = 1024
+
+pad_input = np.random.rand(batch_size, max_seq_len, embed_dim).astype(x_type)
+residual_input = np.random.rand(batch_size, max_seq_len,
+                                embed_dim).astype(x_type)
+dout = np.random.random((batch_size, max_seq_len, embed_dim)).astype(x_type)
+
+bert_config_path = '/zengjinle/dataset/bert_data/phase1/bert_config.json'
+config = BertConfig.from_json_file(bert_config_path)
+
+config.num_hidden_layer = 2
+config.hidden_size = embed_dim
+
+config.attention_probs_dropout_prob = 0
+config.hidden_dropout_prob = 0
+
+config.unpad_fmha = True
+
+
+def run_dynamic():
+    paddle.set_default_dtype(x_type)
+    fused_dropout = FusedDropoutResidualLn(
+        config, config.hidden_size, epsilon=1e-12)
+    pad_input_tensor = paddle.to_tensor(pad_input, stop_gradient=False)
+    residual_tensor = paddle.to_tensor(residual_input, stop_gradient=False)
+    out = fused_dropout(pad_input_tensor, residual_tensor)
+
+    dout_tensor = paddle.to_tensor(dout)
+    paddle.autograd.backward([out], [dout_tensor], retain_graph=True)
+    return out, pad_input_tensor.grad, residual_tensor.grad, fused_dropout
+
+
+def run_dynamic_ref(fused_dropout):
+    paddle.set_default_dtype(x_type)
+    layer_norm = nn.LayerNorm(config.hidden_size, epsilon=1e-12)
+    dropout = nn.Dropout(config.hidden_dropout_prob)
+
+    # set values for ln.
+    layer_norm.weight.set_value(fused_dropout.weight)
+    layer_norm.bias.set_value(fused_dropout.bias)
+
+    pad_input_tensor = paddle.to_tensor(pad_input, stop_gradient=False)
+    residual_tensor = paddle.to_tensor(residual_input, stop_gradient=False)
+    hidden_states = dropout(pad_input_tensor)
+    hidden_states = hidden_states + residual_tensor
+    out = layer_norm(hidden_states)
+
+    dout_tensor = paddle.to_tensor(dout)
+    paddle.autograd.backward([out], [dout_tensor], retain_graph=True)
+    return out, pad_input_tensor.grad, residual_tensor.grad
+
+
+def run_static():
+    paddle.set_default_dtype(x_type)
+    fused_dropout = FusedDropoutResidualLn(
+        config, config.hidden_size, epsilon=1e-12)
+
+    x = paddle.static.data(
+        name='X', shape=[batch_size, max_seq_len, embed_dim], dtype=x_type)
+
+    residual = paddle.static.data(
+        name='Residual',
+        shape=[batch_size, max_seq_len, embed_dim],
+        dtype=x_type)
+
+    fused_out = fused_dropout(x, residual)
+
+    place = paddle.CUDAPlace(0)
+    exe = paddle.static.Executor(place)
+    exe.run(paddle.static.default_startup_program())
+    out = exe.run(paddle.static.default_main_program(),
+                  feed={"X": pad_input,
+                        "Residual": residual_input},
+                  fetch_list=[fused_out])
+    return out
+
+
+def test_dynamic(atol=1e-2):
+    paddle.disable_static(place=paddle.CUDAPlace(0))
+    out, input_grad, residual_grad, fused_dropout = run_dynamic()
+    ref_out, ref_input_grad, ref_residual_grad = run_dynamic_ref(fused_dropout)
+
+    np.testing.assert_allclose(
+        ref_out.numpy(), out.numpy(), rtol=1e-5, atol=atol)
+    np.testing.assert_allclose(
+        ref_input_grad.numpy(), input_grad.numpy(), rtol=1e-5, atol=atol)
+    np.testing.assert_allclose(
+        ref_residual_grad.numpy(), residual_grad.numpy(), rtol=1e-5, atol=atol)
+    print("Dynamic Test success!")
+
+
+def test_static():
+    paddle.enable_static()
+    with paddle.static.program_guard(Program()):
+        out = run_static()
+    # print("static out: ", out)
+
+
+test_dynamic()
+test_static()

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WTF Test</title>
+  <script src="../wtf_trace_web_js_compiled.js"></script>
+  <style>
+    .hudButton {
+      padding: 50px !important;
+    }
+  </style>
+</head>
+<body>
+  <script>
+    var options = {
+      'wtf.trace.target': 'file://test'
+    };
+    wtf.trace.prepare(options);
+    wtf.hud.prepare();
+    wtf.trace.start();
+  </script>
+
+  <br/>
+  <br/>
+  <br/>
+  <a id="someLink" href="">Click!</a>
+  <a id="testPerfLink" href="">Perf!</a>
+
+  <script>
+    window.onload = function() {
+      var customAppend = wtf.trace.events.createInstance(
+          'myCustomAppend(uint32 a, uint32 b)',
+          wtf.data.EventFlag.APPEND_SCOPE_DATA);
+      var someLink = document.getElementById('someLink');
+      someLink.onclick = function(e) {
+        e.preventDefault();
+
+        // Enter scope
+        var scope = wtf.trace.enterScope('onclick');
+
+        // Start flow...
+        var flow = wtf.trace.branchFlow('click');
+        window.setTimeout(function() {
+          // Enter scope, resume flow
+          var scope = wtf.trace.enterScope('setTimeout callback');
+          wtf.trace.extendFlow(flow, 'timeout');
+
+          wtf.trace.appendScopeData('number', -1);
+          wtf.trace.appendScopeData('string', 'hello');
+          wtf.trace.appendScopeData('array', [1, 2, 3]);
+          wtf.trace.appendScopeData('obj', {
+            a: 1,
+            b: 2
+          });
+          wtf.trace.appendScopeData('complex', {
+            a: [1, 2, 3],
+            d: {
+              b: [4, 5, 6]
+            }
+          });
+          customAppend(123, 456);
+
+          console.log('hi');
+
+          wtf.trace.terminateFlow(flow);
+          wtf.trace.leaveScope(scope);
+        }, 0);
+
+        wtf.trace.leaveScope(scope);
+      };
+
+      function unscopedMethod(x) {
+        x++;
+        return x;
+      };
+
+      function doLotsOfControls(count) {
+        var x = 0;
+        for (var n = 0; n < count; n++) {
+          x = unscopedMethod(x);
+        }
+        return x;
+      };
+
+      function scopedMethod(x) {
+        var scope = wtf.trace.enterScope();
+        x++;
+        return wtf.trace.leaveScope(scope, x);
+      };
+
+      function doLotsOfScopes(count) {
+        var x = 0;
+        for (var n = 0; n < count; n++) {
+          x = scopedMethod(x);
+        }
+        return x;
+      };
+
+      function consoleScopedMethod(x) {
+        console.time('a');
+        x++;
+        console.timeEnd('a');
+        return x;
+      }
+
+      function doLotsOfConsoleScopes(count) {
+        var x = 0;
+        for (var n = 0; n < count; n++) {
+          x = consoleScopedMethod(x);
+        }
+        return x;
+      }
+
+      var testPerfLink = document.getElementById('testPerfLink');
+      testPerfLink.onclick = function(e) {
+        e.preventDefault();
+
+        var runCount = 50;
+        var count = 100000;
+
+        for (var n = 0; n < 10; n++) {
+          var startTime = wtf.now();
+
+          doLotsOfControls(count);
+
+          var duration = wtf.now() - startTime;
+          console.log(
+              'control total: ' + duration + ', per fn: ' + (duration / count));
+        }
+
+        wtf.trace.start();
+
+        var meanDuration = 0;
+        for (var n = 0; n < runCount; n++) {
+          var startTime = wtf.now();
+
+          doLotsOfScopes(count);
+
+          var duration = wtf.now() - startTime;
+          meanDuration += duration;
+          console.log(
+              'total: ' + duration + ', per ~call: ' + (duration / count / 2));
+        }
+        meanDuration /= runCount;
+        console.log('scope mean duration: ' + meanDuration + ', per ~call: ' +
+            (meanDuration / count / 2));
+
+        wtf.trace.stop();
+        wtf.trace.start();
+
+        var meanDuration = 0;
+        for (var n = 0; n < runCount; n++) {
+          var startTime = wtf.now();
+
+          doLotsOfConsoleScopes(count);
+
+          var duration = wtf.now() - startTime;
+          meanDuration += duration;
+          console.log(
+              'total: ' + duration + ', per ~call: ' + (duration / count / 2));
+        }
+        meanDuration /= runCount;
+        console.log('console mean duration: ' + meanDuration + ', per ~call: ' +
+            (meanDuration / count / 2));
+
+        wtf.trace.stop();
+        wtf.trace.start();
+      };
+    };
+  </script>
+</body>
+</html>

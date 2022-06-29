@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WTF Test (uncompiled)</title>
+  <script>window.CLOSURE_NO_DEPS = true;</script>
+  <script src="../third_party/closure-library/closure/goog/base.js"></script>
+  <script src="../wtf_js-deps.js"></script>
+  <link rel="stylesheet" href="../wtf_trace_web_styles_debug.css"></link>
+</head>
+<body>
+  <script>
+    goog.require('wtf.trace.exports');
+    goog.require('wtf.hud.exports');
+  </script>
+  <script>
+    var options = {
+      // 'wtf.hud.app.mode': 'remote',
+      // 'wtf.hud.app.endpoint': 'localhost:9024',
+      // 'wtf.hud.app.mode': 'page',
+      // 'wtf.hud.app.endpoint': 'http://localhost:8080/app/maindisplay-debug.html',
+      'wtf.trace.target': 'file://test',
+      'wtf.trace.format': 'binary',
+      // 'wtf.trace.target': 'http://localhost:8090/save',
+      'wtf.trace.streaming.flushIntervalMs': 100,
+      'wtf.trace.replayable': true
+    };
+    wtf.hud.prepare(options);
+    wtf.trace.start(options);
+  </script>
+
+  <br/>
+  <br/>
+  <br/>
+  <a id="someLink" href="">Click!</a>
+  <a id="testPerfLink" href="">Perf!</a>
+  <a id="testRoundTripLink" href="">Round-trip!</a>
+  <div style="height: 2000px"></div>
+  <script>
+    wtf.trace.mark('body load');
+    window.onload = function() {
+      wtf.trace.mark('onload');
+      var arrayEvent = wtf.trace.events.createInstance('arrayEvent(uint8[] v, uint32 x)');
+      var appendScopeData = wtf.trace.events.createInstance(
+          'customAppendScopeData(uint32 xxx)',
+          wtf.data.EventFlag.APPEND_SCOPE_DATA);
+      var appendFlowData = wtf.trace.events.createInstance(
+          'customAppendFlowData(flowId id, int32 a)',
+          wtf.data.EventFlag.APPEND_FLOW_DATA);
+      var someLink = document.getElementById('someLink');
+      someLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        wtf.trace.mark('click');
+
+        console.timeStamp('CSI/5');
+
+        var rangeA = wtf.trace.beginTimeRange('a');
+        var rangeB = wtf.trace.beginTimeRange('b', 'some value');
+
+        // Enter scope
+        var scope = wtf.trace.enterScope('onclick');
+
+        wtf.trace.appendScopeData('hello', 'world');
+        appendScopeData(12345);
+
+        arrayEvent(new Uint8Array([1, 2, 3]), 5);
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', 'test-uncompiled.html?random=' + Math.random(), true);
+        xhr.onreadystatechange = function() {
+          console.log('xhr', xhr.readyState);
+        };
+        xhr.send(null);
+
+        // Start flow...
+        var flow = wtf.trace.branchFlow('click');
+        wtf.trace.extendFlow(flow);
+        wtf.trace.appendFlowData(flow, 'x', 123);
+        appendFlowData(flow, 456);
+        window.setTimeout(function() {
+          wtf.trace.endTimeRange(rangeA);
+
+          // Enter scope, resume flow
+          var scope = wtf.trace.enterScope('setTimeout callback');
+          wtf.trace.extendFlow(flow, 'timeout');
+
+          wtf.trace.timeStamp('hello1', 'a');
+          wtf.trace.timeStamp('hello2', 'b');
+
+          var scope2 = wtf.trace.enterScope('xx');
+          var t = wtf.now();
+          wtf.trace.timeStamp('hello3a', t);
+          wtf.trace.timeStamp('hello3b', t);
+          wtf.trace.leaveScope(scope2);
+
+          console.log('hi');
+
+          wtf.trace.terminateFlow(flow);
+          wtf.trace.leaveScope(scope);
+
+          wtf.trace.endTimeRange(rangeB);
+          wtf.trace.mark('click done');
+        }, 0);
+
+        wtf.trace.leaveScope(scope);
+      });
+
+      document.body.addEventListener('DOMMouseScroll', function(e) {
+        console.log('scroll!');
+      }, false);
+
+      if (window.MessageChannel) {
+        var channel = new MessageChannel();
+        channel.port1.onmessage = function() {
+          wtf.trace.timeStamp('port_onmessage');
+        };
+        wtf.trace.timeStamp('port_send_message');
+        channel.port2.postMessage(0);
+        window.cc = channel;
+      }
+
+      var el = document.createElement('a');
+      el.innerText = 'aaa';
+      document.body.appendChild(el);
+      console.log(el);
+      el.onclick = function() {
+        console.log('woo');
+      };
+
+      function unscopedMethod(x) {
+        x++;
+        return x;
+      };
+
+      function doLotsOfControls(count) {
+        var x = 0;
+        for (var n = 0; n < count; n++) {
+          x = unscopedMethod(x);
+        }
+        return x;
+      };
+
+      function scopedMethod(x) {
+        var scope = wtf.trace.enterScope('a');
+        x++;
+        return wtf.trace.leaveScope(scope, x);
+      };
+
+      function doLotsOfScopes(count) {
+        var x = 0;
+        for (var n = 0; n < count; n++) {
+          x = scopedMethod(x);
+        }
+        return x;
+      };
+
+      var testPerfLink = document.getElementById('testPerfLink');
+      testPerfLink.onclick = function(e) {
+        e.preventDefault();
+
+        var runCount = 50;
+        var count = 100000;
+
+        for (var n = 0; n < 10; n++) {
+          var startTime = wtf.now();
+
+          doLotsOfControls(count);
+
+          var duration = wtf.now() - startTime;
+          console.log(
+              'control total: ' + duration + ', per fn: ' + (duration / count));
+        }
+
+        wtf.trace.start();
+
+        var meanDuration = 0;
+        for (var n = 0; n < runCount; n++) {
+          var startTime = wtf.now();
+
+          doLotsOfScopes(count);
+
+          var duration = wtf.now() - startTime;
+          meanDuration += duration;
+          console.log(
+              'total: ' + duration + ', per ~call: ' + (duration / count / 2));
+        }
+        meanDuration /= runCount;
+        console.log('mean duration: ' + meanDuration + ', per ~call: ' +
+            (meanDuration / count / 2));
+      };
+
+      var autoScopedMethod = wtf.trace.instrument(function(x) {
+        x++;
+        return x;
+      }, 'autoScopedMethod');
+
+      function doSomeInstrumentedScopes(count) {
+        var x = 0;
+        for (var n = 0; n < count; n++) {
+          x = autoScopedMethod(x);
+        }
+        return x;
+      };
+
+      var autoScopedMethodWithArgs = wtf.trace.instrument(function(x) {
+        x++;
+        return x;
+      }, 'autoScopedMethodWithArgs(uint32 x)');
+
+      function doSomeInstrumentedScopesWithArgs(count) {
+        var x = 0;
+        for (var n = 0; n < count; n++) {
+          x = autoScopedMethodWithArgs(x);
+        }
+        return x;
+      };
+
+      var foo = {};
+      foo.MyBaseType = function(x) {
+        this.x = x;
+      };
+      foo.MyBaseType.prototype.doSomething = function() {
+        return this.x;
+      };
+      foo.MyBaseType = wtf.trace.instrumentType(
+          foo.MyBaseType, 'foo.MyBaseType(uint32 x)',
+          goog.reflect.object(foo.MyBaseType, {
+            doSomething: 'doSomething()'
+          }));
+
+      foo.MyType = function(x, y) {
+        goog.base(this, x);
+        this.y = y;
+      };
+      goog.inherits(foo.MyType, foo.MyBaseType);
+      foo.MyType.staticMethod = function(x) {
+        return x + 5;
+      };
+      foo.MyType.prototype.doSomething = function() {
+        return goog.base(this, 'doSomething') + this.y;
+      };
+      foo.MyType = wtf.trace.instrumentType(
+          foo.MyType, 'foo.MyType(uint32 x, uint32 y)',
+          goog.reflect.object(foo.MyType, {
+            doSomething: 'doSomething()'
+          }));
+
+
+      var testRoundTripLink = document.getElementById('testRoundTripLink');
+      testRoundTripLink.onclick = function(e) {
+        e.preventDefault();
+
+        console.log(foo.MyType.staticMethod(5));
+        var mt = new foo.MyType(1, 2);
+        console.log(mt.doSomething());
+
+        var runCount = 50;
+        var count = 100000;
+
+        var meanDuration = 0;
+        for (var n = 0; n < runCount; n++) {
+          var startTime = wtf.now();
+
+          doSomeInstrumentedScopes(count);
+
+          var duration = wtf.now() - startTime;
+          meanDuration += duration;
+          console.log(
+              'total: ' + duration + ', per ~call: ' + (duration / count / 2));
+        }
+        meanDuration /= runCount;
+        console.log('mean duration: ' + meanDuration + ', per ~call: ' +
+            (meanDuration / count / 2));
+
+        meanDuration = 0;
+        for (var n = 0; n < runCount; n++) {
+          var startTime = wtf.now();
+
+          doSomeInstrumentedScopesWithArgs(count);
+
+          var duration = wtf.now() - startTime;
+          meanDuration += duration;
+          console.log(
+              'total: ' + duration + ', per ~call: ' + (duration / count / 2));
+        }
+        meanDuration /= runCount;
+        console.log('mean duration: ' + meanDuration + ', per ~call: ' +
+            (meanDuration / count / 2));
+      };
+
+      wtf.trace.initializeDomEventProperties(document.body, true);
+    };
+
+    wtf.trace.initializeDomEventProperties(document.body, true);
+  </script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+export BUCKET=1
+export EPOCH=${EPOCH:-70}
+export LR=0.0062
+export BETA1=0.9
+export BETA2=0.9985
+export WEIGHTS_INIT_SCALE=0.45
+export EMA=0.994
+export LR_DECAY_POWER=0.915
+export WARMUP=1
+export HOLD_EPOCHS=11

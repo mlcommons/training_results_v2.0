@@ -1,0 +1,60 @@
+model:
+  resnet:
+    model_name: resnet50
+    initializers:
+      - kaiming_normal
+      - bn_uniform
+    num_classes: 1000
+algorithms:
+  channels_last:
+  label_smoothing:
+    smoothing: 0.1
+callbacks:
+  mlperf:
+    index: 0
+    benchmark: 'resnet'
+    target: 0.759
+    division: 'open'
+  speed_monitor:
+train_dataset:
+  imagenet:
+    resize_size: -1
+    crop_size: 224
+    is_train: true
+    shuffle: true
+    drop_last: true
+    use_ffcv: true
+val_dataset:
+  imagenet:
+    resize_size: 256
+    crop_size: 224
+    is_train: false
+    shuffle: false
+    drop_last: false
+    use_ffcv: true 
+optimizer:
+  decoupled_sgdw:
+    lr: 2.048
+    momentum: 0.875
+    weight_decay: 5.0e-4
+    dampening: 0
+    nesterov: false
+scale_schedule_ratio: 1.0
+schedulers:
+  - cosine_decay_with_warmup:
+      t_warmup: "8ep"
+max_duration: 90ep
+train_batch_size: 2048
+eval_batch_size: 2048
+eval_interval: 4
+seed: 17
+device:
+  gpu: {}
+dataloader:
+  pin_memory: true
+  timeout: 0
+  prefetch_factor: 2
+  persistent_workers: true
+  num_workers: 8
+grad_accum: 1
+precision: amp

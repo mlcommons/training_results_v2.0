@@ -1,0 +1,55 @@
+// Copyright 2016 The Closure Rules Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package closure;
+
+option java_package = "io.bazel.rules.closure.webfiles.server";
+
+// Configuration required to start a webfiles server.
+message WebfilesServerInfo {
+
+  // Canonical build target for this rule, e.g. //myapp/components/foo
+  string label = 1;
+
+  // HostAndPort on which to listen for requests.
+  string bind = 2;
+
+  // Paths of Webfiles proto manifests relative to TEST_SRCDIR.
+  repeated string manifest = 3;
+
+  // Bindings for serving runfiles or other files outside the build graph.
+  repeated AssetInfo external_asset = 4;
+
+  // If true, dev server process will fail if bind port is in use, rather than
+  // incrementing the port until one can be found.
+  bool fail_if_port_in_use = 5;
+
+  // If true, don't spawn the thread that monitors the file system for changes.
+  bool no_reloader = 6;
+}
+
+// Static asset mapping for development web server which is served when a
+// matching webpath can't be found in transitive srcs.
+message AssetInfo {
+
+  // Absolute path on web server. Should be unique across repeated entries.
+  string webpath = 1;
+
+  // Path on file system. This path can be absolute or relative to TEST_SRCDIR.
+  // If this path is a directory, then webpath will be stripped off the request
+  // path and the remaining portion will be resolved against this path.
+  string path = 2;
+}

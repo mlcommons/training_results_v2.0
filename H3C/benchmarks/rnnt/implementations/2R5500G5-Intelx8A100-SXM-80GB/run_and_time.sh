@@ -1,0 +1,5 @@
+#!/bin/bash
+
+cd ../pytorch
+source ./config_2R5500G5-Intelx8A100-SXM-80GB.sh
+CONT=mlperf-H3C:rnnt DATADIR=/PATH/TO/DATADIR LOGDIR=/PATH/TO/LOGDIR METADATA_DIR=/PATH/TO/METADATA_DIR SENTENCEPIECES_DIR=/PATH/TO/SENTENCEPIECES_DIR sbatch -N 2 --tasks=64 --gres=gpu:8 -t 800 run.sub

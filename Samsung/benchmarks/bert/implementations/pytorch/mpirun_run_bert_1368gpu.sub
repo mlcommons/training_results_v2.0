@@ -1,0 +1,143 @@
+#!/bin/ksh
+set -x
+
+export MY_PYTHON='/home/sr6/zetta/pyenv/versions/CUDA11.4_NGC_PYTORCH/bin/python'
+export MY_MPIRUN='mpirun'
+export PATH=/apps/mpi/gcc/RHEL7/openmpi-3.1.0/bin:/home/sr6/zetta/pyenv/libexec:/home/sr6/zetta/pyenv/bin:${PATH}
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/apps/mpi/gcc/RHEL7/openmpi-3.1.0/lib
+
+export PYTHONPATH=$pwd:$PYTHONPATH
+
+#CUDA11.4_NGC_PYTORCH
+export PYTHONPATH=/home/sr6/zetta/pyenv/versions/CUDA11.4_NGC_PYTORCH/:$PYTHONPATH
+export PATH=/home/sr6/zetta/pyenv/versions/CUDA11.4_NGC_PYTORCH/bin:${PATH}
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/apps/cuda/RHEL8/cuda_11.4.2/lib64:/apps/gcc/gcc-8.3.0/lib64:/apps/gcc/gcc-8.3.0/lib:/apps/cuda/cudnn-11.4-linux-x64-v8.2.4.15/lib64
+
+
+#DGXSYSTEM & hosts
+source ./config_${DGXSYSTEM}.sh
+#export hosts=('192.168.16.1' '192.168.16.2')
+#source super_hosts_list.sh
+
+export MASTER_PORT=34507
+#export HOSTLIST=`echo $LSB_MCPU_HOSTS | sed s/' 8'/' '/g`
+export HOSTLIST='agpu1301 agpu1302 agpu1303 agpu1304 agpu1305 agpu1306 agpu1307 agpu1308 agpu1309 agpu1310 agpu1311 agpu1312 agpu1313 agpu1314 agpu1315 agpu1316 agpu1317 agpu1318 agpu1319 agpu1320 agpu1322 agpu1323 agpu1324 agpu1325 agpu1326 agpu1327 agpu1328 agpu1329 agpu1330 agpu1331 agpu1332 agpu1529 agpu1335 agpu1336 agpu1337 agpu1338 agpu1339 agpu1340 agpu1341 agpu1342 agpu1343 agpu1344 agpu1345 agpu1346 agpu1347 agpu1348 agpu1350 agpu1351 agpu1352 agpu1353 agpu1354 agpu1355 agpu1356 agpu1530 agpu1358 agpu1359 agpu1360 agpu1361 agpu1362 agpu1363 agpu1364 agpu1365 agpu1366 agpu1367 agpu1368 agpu1369 agpu1370 agpu1371 agpu1372 agpu1373 agpu1391 agpu1392 agpu1393 agpu1394 agpu1395 agpu1396 agpu1397 agpu1398 agpu1399 agpu1400 agpu1401 agpu1402 agpu1403 agpu1404 agpu1405 agpu1406 agpu1407 agpu1408 agpu1409 agpu1410 agpu1411 agpu1412 agpu1413 agpu1414 agpu1415 agpu1416 agpu1417 agpu1418 agpu1419 agpu1420 agpu1421 agpu1422 agpu1423 agpu1424 agpu1425 agpu1426 agpu1427 agpu1428 agpu1429 agpu1430 agpu1431 agpu1432 agpu1433 agpu1434 agpu1435 agpu1436 agpu1437 agpu1438 agpu1439 agpu1440 agpu1441 agpu1442 agpu1444 agpu1445 agpu1446 agpu1447 agpu1448 agpu1449 agpu1450 agpu1451 agpu1452 agpu1453 agpu1454 agpu1455 agpu1456 agpu1457 agpu1458 agpu1459 agpu1460 agpu1461 agpu1462 agpu1499 agpu1500 agpu1501 agpu1502 agpu1503 agpu1504 agpu1505 agpu1506 agpu1507 agpu1508 agpu1509 agpu1510 agpu1511 agpu1531 agpu1532 agpu1514 agpu1515 agpu1516 agpu1517 agpu1518 agpu1519 agpu1520 agpu1521 agpu1522 agpu1523 agpu1524 agpu1525 agpu1526 agpu1527 agpu1528'
+
+export NCCL_IB_HCA=mlx5_1,mlx5_0,mlx5_5,mlx5_2
+export NCCL_DEBUG=WARN
+#export NCCL_DEBUG=info
+
+export bert_train_shell_file="./bert_train.sh"
+
+# NCORES_PER_SOCKET
+for HOST in $HOSTLIST
+do
+    in=$(echo $HOST | grep "agpu")
+    if [[ "$in" != "" ]]
+        then  #including "agpu"
+        HOST_NUMBER=$(echo $HOST | sed 's/agpu//')
+        LAST_IP=$(($HOST_NUMBER-1300))
+        export MASTER_IP=202.20.169.$LAST_IP
+    else  #not including "agpu"
+        HOST_NUMBER=$(echo $HOST | sed 's/vngpuc//')
+        LAST_IP=$(($HOST_NUMBER-8000))
+        export MASTER_IP=202.20.204.$LAST_IP
+    fi
+
+    export NCORES_PER_SOCKET=$(ssh ${HOST} "/usr/bin/lscpu | grep 'Core(s)' | awk {'print \$4'}")
+    break
+done
+
+NEXP=${NEXP:-1}
+export WARMUP_PORTION=${WARMUP_PORTION:-0.0}
+
+delim=""
+HOST_LIST=""
+for HOST in $HOSTLIST
+do
+    in=$(echo $HOST | grep "agpu")
+    if [[ "$in" != "" ]]
+    then  #including "agpu"
+        HOST_NUMBER=$(echo $HOST | sed 's/agpu//')
+        LAST_IP=$(($HOST_NUMBER-1300))
+        item="202.20.169.$LAST_IP"
+    else  #not including "agpu"
+        HOST_NUMBER=$(echo $HOST | sed 's/vngpuc//')
+        LAST_IP=$(($HOST_NUMBER-8000))
+        item="202.20.204.$LAST_IP"
+    fi
+    HOST_LIST="${HOST_LIST}${delim}${item}"
+    delim=","
+done
+
+export HOSTCOUNT=`echo $HOSTLIST | wc -w`
+export HOST_LIST="${HOST_LIST}"
+echo "Host List : $HOSTLIST"
+echo "Node COUNT : $HOSTCOUNT"
+
+
+GBS=$((8*$BATCHSIZE*${HOSTCOUNT}))
+
+NOW=$(date +"%m%d_%I_%M")
+
+
+# mkdir log if does not exist
+LOGDIR=${LOGDIR:-'./results'}
+if [ ! -d $LOGDIR ]; then
+    mkdir -p $LOGDIR
+fi
+
+#CACHE_CLEAR_CMD=" 'from mlperf_logging.mllog import constants; from mlperf_logger import log_event; log_event(key=constants.CACHE_CLEAR, value=True)' "
+
+
+# echo "Start expirement, trial=0, real_seed=0"
+
+for ((nexp=0; nexp < NEXP; ++nexp))
+do
+    #seed=${nexp}
+    seed=${RANDOM}
+
+    i=0
+    for HOST in $HOSTLIST
+    do
+        export NODE_RANK=$i
+        LAUNCH_CMD="$MY_PYTHON -u -m bind_launch --nnodes=$HOSTCOUNT --nproc_per_node=8 --master_addr=$MASTER_IP --master_port=$MASTER_PORT --node_rank=\$1 --nsockets_per_node=2 --ncores_per_socket=$NCORES_PER_SOCKET run_pretraining.py --train_batch_size=$BATCHSIZE --learning_rate=$LR --weight_decay_rate=$WEIGHT_DECAY_RATE --opt_lamb_beta_1=$OPT_LAMB_BETA_1 --opt_lamb_beta_2=$OPT_LAMB_BETA_2 --warmup_proportion=$WARMUP_PORTION --start_warmup_step=$START_STEPS --warmup_steps=$WARMUP_STEPS --max_steps=$MAX_STEPS --phase2 --max_seq_length=512 --max_predictions_per_seq=76 --input_dir=$INPUT_DIR --init_checkpoint=$CHECKPOINTDIR_PHASE1/model.ckpt-28252.pt --do_train --skip_checkpoint --train_mlm_accuracy_window_size=0  --target_mlm_accuracy=$TARGET_MLM_ACCURACY --max_samples_termination=$MAX_SAMPLES_TERMINATION --eval_iter_start_samples=$EVAL_START --eval_iter_samples=$EVAL_ITER --eval_batch_size=16 --eval_dir=$EVAL_DIR --output_dir=./results --fp16  --allreduce_post_accumulation --allreduce_post_accumulation_fp16 --gradient_accumulation_steps=$GRAD_STEPS  --bert_config_path=$CHECKPOINTDIR_PHASE1/bert_config.json --output_dir=./results --cache_eval_data --optimizer=$OPTIMIZER --end_learning_rate=$END_LR --epsilon=$EPSILON --use_env --use_apex_amp --fused_mha --dense_seq_output $EXTRA_PARAMS "
+        LAUNCH_CMD_temp="${LAUNCH_CMD} --seed ${seed}"
+        echo ${LAUNCH_CMD_temp} > ${bert_train_shell_file}
+        chmod +x ${bert_train_shell_file}
+        if (( $i == 0)); then
+            echo "Master IP : $MASTER_IP"
+            export CLEAR_SCRIPT="-np 1 --bind-to none --host $HOST -x PATH -x LD_LIBRARY_PATH -x PYTHONPATH bash clear_cache.sh"
+            export RUN_SCRIPT="-np 1 --bind-to none --host $HOST -x PATH -x LD_LIBRARY_PATH -x NCCL_IB_HCA -x NCCL_DEBUG -x MASTER_IP -x MASTER_PORT -x BATCHSIZE -x LR -x WEIGHT_DECAY_RATE -x OPT_LAMB_BETA_1 -x OPT_LAMB_BETA_2 -x WARMUP_PORTION -x START_STEPS -x WARMUP_STEPS -x MAX_STEPS -x INPUT_DIR -x CHECKPOINTDIR_PHASE1 -x TARGET_MLM_ACCURACY -x MAX_SAMPLES_TERMINATION -x EVAL_START -x EVAL_ITER -x EVAL_DIR -x OPTIMIZER -x GRAD_STEPS -x NODE_RANK -x NCORES_PER_SOCKET bash ${bert_train_shell_file} $NODE_RANK"
+        else
+            export CLEAR_SCRIPT="$CLEAR_SCRIPT : -np 1 --bind-to none --host $HOST -x PATH -x LD_LIBRARY_PATH -x PYTHONPATH bash clear_cache.sh"
+            export RUN_SCRIPT="$RUN_SCRIPT : -np 1 --bind-to none --host $HOST -x PATH -x LD_LIBRARY_PATH -x NCCL_IB_HCA -x NCCL_DEBUG -x MASTER_IP -x MASTER_PORT -x BATCHSIZE -x LR -x WEIGHT_DECAY_RATE -x OPT_LAMB_BETA_1 -x OPT_LAMB_BETA_2 -x WARMUP_PORTION -x START_STEPS -x WARMUP_STEPS -x MAX_STEPS -x INPUT_DIR -x CHECKPOINTDIR_PHASE1 -x TARGET_MLM_ACCURACY -x MAX_SAMPLES_TERMINATION -x EVAL_START -x EVAL_ITER -x EVAL_DIR -x OPTIMIZER -x GRAD_STEPS -x NODE_RANK -x NCORES_PER_SOCKET bash ${bert_train_shell_file} $NODE_RANK"
+        fi
+        i=$(($i+1))
+    done
+
+    time=$(date +"%y%m%d%H%M%S")
+    echo "[${time}] begin mpirun --help":
+    $MY_MPIRUN --help
+    time=$(date +"%y%m%d%H%M%S")
+    echo "[${time}] end mpirun --help"
+    sleep 1s
+    
+    time=$(date +"%y%m%d%H%M%S")
+    echo "[${time}] begin mpirun clear cache"
+    $MY_MPIRUN $CLEAR_SCRIPT 2>&1 | tee ${LOGDIR}/output_${NOW}_result_${nexp}.log
+    #$MY_MPIRUN $CLEAR_SCRIPT
+    time=$(date +"%y%m%d%H%M%S")
+    echo "[${time}] end mpirun clear cache"
+    sleep 2s
+    
+    time=$(date +"%y%m%d%H%M%S")
+    echo "[${time}] begin mpirun bert train"
+    $MY_MPIRUN $RUN_SCRIPT 2>&1 | tee -a ${LOGDIR}/output_${NOW}_result_${nexp}.log
+    #$MY_MPIRUN $RUN_SCRIPT
+    time=$(date +"%y%m%d%H%M%S")
+    echo "[${time}] end mpirun bert train"        
+    sleep 3s
+
+done
+
