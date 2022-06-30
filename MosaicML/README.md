@@ -22,7 +22,7 @@ Each configuration is defined with a YAML file, linked in the below table.
 | Benchmark | Benchmark Config | Description | Speedup Methods |
 | --- | --- | --- | --- |
 | resnet | [8xA100_80GB-baseline](benchmarks/resnet/implementations/8xA100_80GB-baseline/config.yaml) | Base training recipe | Channels Last, Decoupled Weight Decay, Label Smoothing |
-| resnet | [8xA100_80GB-methods](benchmarks/resnet/implementations/8xA100_80GB-methods/resnet50.yaml) | Optimized training recipe | Binary Cross Entropy Loss, Blurpool, Channels Last, Decoupled Weight Decay, Exponential Moving Average, FixRes, Label Smoothing, Progressive Resizing, Scale Schedule Ratio |
+| resnet | [8xA100_80GB-methods](benchmarks/resnet/implementations/8xA100_80GB-methods/config.yaml) | Optimized training recipe | Binary Cross Entropy Loss, Blurpool, Channels Last, Decoupled Weight Decay, Exponential Moving Average, FixRes, Label Smoothing, Progressive Resizing, Scale Schedule Ratio |
 
 For details on our speed up methods, please see our [Methods Overview](https://docs.mosaicml.com/en/stable/method_cards/methods_overview.html) documentation.
 
@@ -56,7 +56,7 @@ trainer = Trainer(
         algorithms.BlurPool(),
         algorithms.ChannelsLast(),
         algorithms.LabelSmoothing(
-            alpha=0.1
+            alpha=0.08,
         ),
         algorithms.ProgressiveResizing(
             size_increment=4,
