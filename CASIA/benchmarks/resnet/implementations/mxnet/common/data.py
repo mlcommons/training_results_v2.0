@@ -35,6 +35,7 @@ class SyntheticDataIter(DataIter):
         self.layout = layout
         label = np.random.randint(0, num_classes, [self.batch_size,])
         data = np.random.uniform(-1, 1, data_shape)
+        # this is modified by yaqiang.sun, CASIA to fit more than 14-gpu system.
         self.data = mx.nd.array(data, dtype=np.float16, ctx=mx.Context('cpu'))
         self.label = mx.nd.array(label, dtype=self.dtype, ctx=mx.Context('cpu'))
     def __iter__(self):
