@@ -5,7 +5,7 @@ export MXNET_EXTENDED_NORMCONV_SUPPORT=1 # supports Arch 80 NormConv fusion
 ## System config params
 export DGXNGPU=8
 export DGXNSOCKET=2
-export DGXSOCKETCORES=32
+export DGXSOCKETCORES=40
 export DGXHT=2  # HT is on is 2, HT off is 1
 export HOROVOD_NUM_NCCL_STREAMS=1
 export MXNET_HOROVOD_NUM_GROUPS=1
