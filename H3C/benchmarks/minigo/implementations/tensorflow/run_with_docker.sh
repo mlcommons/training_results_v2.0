@@ -37,7 +37,7 @@ readonly _config_file="./config_${DGXSYSTEM}.sh"
 readonly _seed_override=${SEED:-}
 readonly _logfile_base="${LOGDIR}/${DATESTAMP}"
 readonly _cont_name=minigo
-_cont_mounts=("--volume=${DATADIR}:/data" "--volume=${LOGDIR}:/results" "--volume=$(pwd):/opt/reinforcement")
+_cont_mounts=("--volume=${DATADIR}:/data" "--volume=${LOGDIR}:/results")
 
 # Setup directories
 mkdir -p "${LOGDIR}"
