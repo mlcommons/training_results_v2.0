@@ -31,3 +31,4 @@ export PA_SEARCH=2
 export PA_INFERENCE=2
 export CONCURRENT_GAMES=32
 export PROCS_PER_GPU=4
+export NEXP=3

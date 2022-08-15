@@ -31,3 +31,4 @@ export DGXNSOCKET=2
 export DGXHT=2         # HT is on is 2, HT off is 1
 
 export NCCL_SOCKET_IFNAME=
+export NEXP=3

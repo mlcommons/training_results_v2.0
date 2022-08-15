@@ -21,3 +21,4 @@ export WALLTIME=01:15:00
 
 ## System config params
 source $(dirname ${BASH_SOURCE[0]})/config_R5300G5x8A100-PCIE-80GB_common.sh
+export NEXP=3

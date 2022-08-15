@@ -13,3 +13,4 @@ export WALLTIME=$(( WALLTIME_BASE + (${NEXP:-1} * WALLTIME_MINUTES) ))
 export OMPI_MCA_btl="^openib"
 export MOUNTS=/raid:/raid
 export CUDA_DEVICE_MAX_CONNECTIONS=3
+export NEXP=3

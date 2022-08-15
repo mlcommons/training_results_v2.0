@@ -45,3 +45,4 @@ export MXNET_EXEC_BULK_EXEC_MAX_NODE_TRAIN_BWD=999
 export DGXNNODES=1
 export DGXSYSTEM=$(basename $(readlink -f ${BASH_SOURCE[0]}) | sed 's/^config_//' | sed 's/\.sh$//' )
 export WALLTIME=00:40:00
+export NEXP=3

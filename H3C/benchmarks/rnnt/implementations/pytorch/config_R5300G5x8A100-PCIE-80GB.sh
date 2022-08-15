@@ -42,3 +42,4 @@ export PRE_SORT_FOR_SEQ_SPLIT=true
 export LOG_FREQUENCY=1000
 
 export NCCL_SOCKET_IFNAME=
+export NEXP=3
