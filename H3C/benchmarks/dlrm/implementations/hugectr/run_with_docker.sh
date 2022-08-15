@@ -62,7 +62,7 @@ nvidia-docker run --rm --init --detach \
     "${CONT}" sleep infinity
 #make sure container has time to finish initialization
 sleep 30
-docker exec -it "${_cont_name}" true
+docker exec  "${_cont_name}" true
 
 
 # Run experiments
@@ -70,12 +70,12 @@ for _experiment_index in $(seq 1 "${NEXP}"); do
   (
     if [[ $CLEAR_CACHES == 1 ]]; then
       bash -c "echo -n 'Clearing cache on ' && hostname && sync && sudo /sbin/sysctl vm.drop_caches=3"
-      docker exec -it "${_cont_name}" python3 -c "
+      docker exec  "${_cont_name}" python3 -c "
 from mlperf_logging.mllog import constants
 from mlperf_logger.utils import log_event
 log_event(key=constants.CACHE_CLEAR, value=True)"
     fi
     echo "Beginning trial ${_experiment_index} of ${NEXP}"
-    docker exec -it ${_config_env[@]} ${_cont_name} bash ./run_and_time.sh
+    docker exec  ${_config_env[@]} ${_cont_name} bash ./run_and_time.sh
   ) |& tee "${_logfile_base}_${_experiment_index}.log"
 done

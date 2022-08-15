@@ -95,7 +95,7 @@ nvidia-docker run --rm --init --detach --gpus='"'device=${NV_GPU}'"' \
     "${CONT}" sleep infinity
 #make sure container has time to finish initialization
 sleep 30
-docker exec -it "${CONT_NAME}" true
+docker exec  "${CONT_NAME}" true
 
 readonly TORCH_RUN="python -m torch.distributed.run --standalone --no_python"
 
@@ -105,7 +105,7 @@ for _experiment_index in $(seq 1 "${NEXP}"); do
         echo "Beginning trial ${_experiment_index} of ${NEXP}"
 
         # Print system info
-        docker exec -it "${CONT_NAME}" python -c "
+        docker exec  "${CONT_NAME}" python -c "
 import mlperf_logger 
 from mlperf_logging.mllog import constants 
 mlperf_logger.mlperf_submission_log(${MLPERF_MODEL_CONSTANT})"
@@ -113,14 +113,14 @@ mlperf_logger.mlperf_submission_log(${MLPERF_MODEL_CONSTANT})"
         # Clear caches
         if [ "${CLEAR_CACHES}" -eq 1 ]; then
             sync && sudo /sbin/sysctl vm.drop_caches=3
-            docker exec -it "${CONT_NAME}" python -c "
+            docker exec  "${CONT_NAME}" python -c "
 from mlperf_logging.mllog import constants 
 from mlperf_logger import log_event 
 log_event(key=constants.CACHE_CLEAR, value=True)"
         fi
 
         # Run experiment
-        docker exec -it "${_config_env[@]}" "${CONT_NAME}" \
+        docker exec  "${_config_env[@]}" "${CONT_NAME}" \
                ${TORCH_RUN} --nproc_per_node=${DGXNGPU} ./run_and_time.sh
     ) |& tee "${LOG_FILE_BASE}_${_experiment_index}.log"
 done
