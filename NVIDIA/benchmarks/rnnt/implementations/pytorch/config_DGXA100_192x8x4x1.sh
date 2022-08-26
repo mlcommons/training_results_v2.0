@@ -2,7 +2,7 @@
 export DGXNNODES=192
 export DGXSYSTEM=$(basename $(readlink -f ${BASH_SOURCE[0]}) | sed 's/^config_//' | sed 's/\.sh$//' )
 export DGXNGPU=8
-export DGXSOCKETCORES=64
+export DGXSOCKETCORES=40
 export DGXNSOCKET=2
 export DGXHT=2         # HT is on is 2, HT off is 1
 

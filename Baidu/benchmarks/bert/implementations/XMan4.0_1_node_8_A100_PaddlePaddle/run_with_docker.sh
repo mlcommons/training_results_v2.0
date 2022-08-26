@@ -32,7 +32,7 @@ func_get_cuda_visible_devices() {
 : "${DATESTAMP:=$(date +'%y%m%d%H%M%S%N')}"
 : "${LOG_DIR:=$(pwd)/results}"
 : "${MLPERF_MODEL_CONSTANT:=constants.BERT}"
-: "${NEXP:=5}"
+: "${NEXP:=10}"
 
 : "${DGXNGPU:=`nvidia-smi --list-gpus | wc -l`}"
 : "${CUDA_VISIBLE_DEVICES:=`func_get_cuda_visible_devices`}"
@@ -58,7 +58,7 @@ _config_env+=(MASTER_PORT)
 mapfile -t _config_env < <(for v in "${_config_env[@]}"; do echo "--env=$v"; done)
 
 if [[ "$STAGE" == "LOGIN" ]]; then
-    docker exec -it "${_config_env[@]}" "${CONT_NAME}" bash
+    docker exec  "${_config_env[@]}" "${CONT_NAME}" bash
     exit 0
 fi
 
@@ -82,7 +82,7 @@ nvidia-docker run --rm --init --detach \
     --name="${CONT_NAME}" \
     --env BASE_DATA_DIR=$BASE_DATA_DIR \
     -v $NVIDIA_SMI:$NVIDIA_SMI \
-    -v $PWD:/workspace/bert \
+#    -v $PWD:/workspace/bert \
     -v $BASE_DATA_DIR:$BASE_DATA_DIR \
     -w /workspace/bert \
     "${CONT}" sleep infinity

@@ -85,7 +85,7 @@ docker run ${_docker_gpu_args} --rm --init --detach \
     "${CONT}" sleep infinity
 #make sure container has time to finish initialization
 sleep 30
-docker exec -it "${_cont_name}" true
+docker exec  "${_cont_name}" true
 
 if [[ $DGXSYSTEM == "DGXA100"* ]]; then
   export NCCL_TOPO_FILE="/workspace/rnnt/dgxa100_nic_affinity.xml"
@@ -100,18 +100,18 @@ for _experiment_index in $(seq 1 "${NEXP}"); do
         echo "Beginning trial ${_experiment_index} of ${NEXP}"
 
         # Print system info
-        docker exec -it "${_cont_name}" python -c ""
+        docker exec  "${_cont_name}" python -c ""
 
         # Clear caches
         if [ "${CLEAR_CACHES}" -eq 1 ]; then
             sync && sudo /sbin/sysctl vm.drop_caches=3
-            docker exec -it "${_cont_name}" python -c "
+            docker exec  "${_cont_name}" python -c "
 from mlperf import logging
 logging.log_event(key=logging.constants.CACHE_CLEAR, value=True)"
         fi
 
         # Run experiment
-        docker exec -it "${_config_env[@]}" "${_cont_name}" \
+        docker exec  "${_config_env[@]}" "${_cont_name}" \
                ${TORCH_RUN} --nproc_per_node=${DGXNGPU} ./run_and_time.sh
     ) |& tee "${_logfile_base}_${_experiment_index}.log"
 done

@@ -24,7 +24,7 @@ set -euxo pipefail
 : "${CONT:?CONT not set}"
 
 # Vars with defaults
-: "${NEXP:=1}"
+: "${NEXP:=5}"
 : "${DATESTAMP:=$(date +'%y%m%d%H%M%S%N')}"
 : "${CLEAR_CACHES:=1}"
 : "${MOUNTS:='/raid/datasets:/raid/datasets,/gpfs/fs1:/gpfs/fs1'}"
@@ -36,8 +36,7 @@ set -euxo pipefail
 readonly _config_file="./config_${DGXSYSTEM}.sh"
 readonly _logfile_base="${LOGDIR}/${DATESTAMP}"
 readonly _cont_name=dlrm_hugectr
-_cont_mounts=("--volume=${DATADIR}:/raid/datasets/criteo/mlperf/40m.limit_preshuffled/" "--volume=${LOGDIR}:${LOGDIR}")
-
+ _cont_mounts=("--volume=${DATADIR}:/raid/datasets/criteo/mlperf/40m.limit_preshuffled/" "--volume=${LOGDIR}:${LOGDIR}" "--volume=${PWD}:/workspace/dlrm")
 # Setup directories
 mkdir -p "${LOGDIR}"
 
@@ -62,7 +61,7 @@ nvidia-docker run --rm --init --detach \
     "${CONT}" sleep infinity
 #make sure container has time to finish initialization
 sleep 30
-docker exec -it "${_cont_name}" true
+docker exec  "${_cont_name}" true
 
 
 # Run experiments
@@ -70,12 +69,12 @@ for _experiment_index in $(seq 1 "${NEXP}"); do
   (
     if [[ $CLEAR_CACHES == 1 ]]; then
       bash -c "echo -n 'Clearing cache on ' && hostname && sync && sudo /sbin/sysctl vm.drop_caches=3"
-      docker exec -it "${_cont_name}" python3 -c "
+      docker exec  "${_cont_name}" python3 -c "
 from mlperf_logging.mllog import constants
 from mlperf_logger.utils import log_event
 log_event(key=constants.CACHE_CLEAR, value=True)"
     fi
     echo "Beginning trial ${_experiment_index} of ${NEXP}"
-    docker exec -it ${_config_env[@]} ${_cont_name} bash ./run_and_time.sh
+    docker exec  ${_config_env[@]} ${_cont_name} bash ./run_and_time.sh
   ) |& tee "${_logfile_base}_${_experiment_index}.log"
 done

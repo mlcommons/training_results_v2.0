@@ -23,6 +23,8 @@ export OPT_LAMB_BETA_2=0.999
 export START_WARMUP_STEP=0
 export WARMUP_PROPORTION=0.0
 
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+
 export PHASE=2
 export EVAL_ITER_START_SAMPLES=150000
 export EVAL_ITER_SAMPLES=150000
@@ -33,4 +35,4 @@ export DGXSYSTEM=$(basename $(readlink -f ${BASH_SOURCE[0]}) | sed 's/^config_//
 export WALLTIME=01:15:00
 
 ## System config params
-source ${BASH_SOURCE%/*}/config_DGXA100_common.sh
+source config_DGXA100_common.sh

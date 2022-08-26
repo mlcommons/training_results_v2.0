@@ -18,7 +18,7 @@ from mlperf_logger.common import save_log_info
 # 1. Create Solver, DataReaderParams and Optimizer
 solver = hugectr.CreateSolver(max_eval_batches = 51,
                               batchsize_eval = 1769472,
-                              batchsize = 55296,
+                              batchsize = 59800,
                               vvgpu = [[0,1,2,3,4,5,6,7]],
                               repeat_dataset = True,
                               lr = 24.0,

@@ -17,7 +17,7 @@
 # runs benchmark and reports time to convergence
 
 # default value for DLRM_BIND only if it is not already defined
-: ${DLRM_BIND:="numactl --membind=1,3,5,7"}
+#: ${DLRM_BIND:="numactl --membind=1,3,5,7"}
 
 set -ex
 

@@ -34,7 +34,7 @@ readonly LOG_FILE_BASE="${LOGDIR}/${LOG_BASE}"
 # Other vars
 readonly _config_file="./config_${DGXSYSTEM}.sh"
 # Mount points
-CONT_MOUNTS=(
+_cont_mounts=(
     "--volume=${DATADIR}:/datasets/open-images-v6"
     "--volume=${LOGDIR}:/results"
     "--volume=${TORCH_HOME}:/torch-home"
@@ -76,7 +76,7 @@ docker run ${_docker_gpu_args} --rm --init --detach \
     "${CONT}" sleep infinity
 #make sure container has time to finish initialization
 sleep 30
-docker exec -it "${CONT_NAME}" true
+docker exec  "${CONT_NAME}" true
 
 readonly TORCH_RUN="python -m torch.distributed.run --standalone --no_python"
 
@@ -89,7 +89,7 @@ for _experiment_index in $(seq 1 "${NEXP}"); do
         # Clear caches
         if [ "${CLEAR_CACHES}" -eq 1 ]; then
             sync && sudo /sbin/sysctl vm.drop_caches=3
-            docker exec -it "${CONT_NAME}" python -c "
+            docker exec  "${CONT_NAME}" python -c "
 from mlperf_logging import mllog
 from mlperf_logging.mllog.constants import CACHE_CLEAR
 mllogger = mllog.get_mllogger()
@@ -97,7 +97,7 @@ mllogger.event(key=CACHE_CLEAR, value=True)"
         fi
 
         # Run experiment
-        docker exec -it "${_config_env[@]}" "${CONT_NAME}" \
+        docker exec  "${_config_env[@]}" "${CONT_NAME}" \
                ${TORCH_RUN} --nproc_per_node=${DGXNGPU} ./run_and_time.sh
     ) |& tee "${LOG_FILE_BASE}_${_experiment_index}.log"
 done

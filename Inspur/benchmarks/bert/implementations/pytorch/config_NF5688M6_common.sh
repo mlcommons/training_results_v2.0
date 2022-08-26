@@ -14,3 +14,4 @@ export RESULTSDIR="results"
 #using existing checkpoint_phase1 dir
 export CHECKPOINTDIR_PHASE1="/mlperf/training/data/bert/phase1_v20"
 export UNITTESTDIR="/lustre/fsw/mlperf/mlperft-bert/unit_test"
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7

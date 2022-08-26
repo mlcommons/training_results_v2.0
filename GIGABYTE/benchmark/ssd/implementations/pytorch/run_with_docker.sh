@@ -39,8 +39,8 @@ _cont_mounts=(
     "--volume=${DATADIR}:/datasets/open-images-v6"
     "--volume=${LOGDIR}:/results"
     "--volume=${TORCH_HOME}:/torch-home"
-    "--volume=$(pwd):/workspace/ssd"
 )
+# "--volume=$(pwd):/workspace/ssd"
 # MLPerf vars
 MLPERF_HOST_OS=$(
     source /etc/os-release

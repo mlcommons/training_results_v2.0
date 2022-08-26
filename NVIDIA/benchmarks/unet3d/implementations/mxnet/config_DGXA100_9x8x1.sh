@@ -37,6 +37,6 @@ export WALLTIME=$((${NEXP} * ${WALLTIME_MINUTES}))
 
 ## System config params
 export DGXNGPU=8
-export DGXSOCKETCORES=64
+export DGXSOCKETCORES=40
 export DGXNSOCKET=2
 export DGXHT=2  # HT is on is 2, HT off is 1

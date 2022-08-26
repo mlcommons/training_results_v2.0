@@ -1,6 +1,6 @@
 ## System config params
 export DGXNGPU=8
-export DGXSOCKETCORES=64
+export DGXSOCKETCORES=40
 export DGXNSOCKET=2
 export DGXHT=2         # HT is on is 2, HT off is 1
 export SLURM_NTASKS=${DGXNGPU}
@@ -18,3 +18,4 @@ export UNITTESTDIR="/lustre/fsw/mlperf/mlperft-bert/unit_test"
 # export CHECKPOINTDIR="/lustre/fsw/mlperf/mlperft-bert/mchochowski/checkpoints"
 #using existing checkpoint_phase1 dir
 #export RESULTSDIR="${PWD}/results"
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
