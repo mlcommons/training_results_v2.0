@@ -25,12 +25,66 @@
  *
  ******************************************************************************/
 
-#include <torch/extension.h>
-#include <ATen/cuda/CUDAContext.h>
-
 #include "fmha.h"
+#include <cmath>
+#include <cstring>
+#include <string>
+#include <exception>
+#include <stdexcept>
+#include <mutex>
+#include <memory>
+#include "cuda.h"
+#include "cuda_runtime.h"
+#include "math.h"
+#include "dlfcn.h"
 
-void set_params(Fused_multihead_attention_fprop_params &params,
+using SeedIncFuncPtr = void (*)(uint64_t, uint64_t *, const int64_t **, uint64_t*, bool*);
+
+#define ASSERT_CHECK(__cond)                             \
+      do {                                               \
+        const bool __cond_var = (__cond);                \
+        if (!__cond_var) {                               \
+          ::std::string __err_msg = ::std::string("`") + \
+                #__cond + "` check failed at " +         \
+		__FILE__ + ":" +                         \
+		::std::to_string(__LINE__);              \
+          throw std::runtime_error(__err_msg);           \
+        }                                                \
+      } while (0)
+
+#ifdef TORCH_CHECK
+#undef TORCH_CHECK
+#endif
+#define TORCH_CHECK ASSERT_CHECK
+
+static thread_local std::unique_ptr<char[]> flash_attn_err_msg;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+static void flash_attn_set_error(const char *msg) {
+  if (msg == nullptr || *msg == '\0') {
+    msg = "unknown error";
+  }
+
+  auto n = strlen(msg);
+  std::unique_ptr<char[]> new_err_msg(new char[n+1]);
+  std::strcpy(new_err_msg.get(), msg);
+  flash_attn_err_msg = std::move(new_err_msg);
+}
+
+const char *flash_attn_error() {
+  return flash_attn_err_msg.get();
+}
+#ifdef __cplusplus
+}
+#endif
+
+#define FMHALIB_BEGIN_FUNC try {
+#define FMHALIB_END_FUNC } catch (::std::exception &__e) { flash_attn_set_error(__e.what()); } catch (...) { flash_attn_set_error(nullptr); }
+
+static void set_params(Fused_multihead_attention_fprop_params &params,
                 // sizes
                 const size_t b,
                 const size_t s,
@@ -105,96 +159,126 @@ void set_params(Fused_multihead_attention_fprop_params &params,
     params.is_causal = is_causal;
 }
 
-std::vector<at::Tensor> 
-mha_fwd(const at::Tensor &qkv,         // total x num_heads x 3 x head_size, total := \sum_{i=0}^{b} s_i
-        const at::Tensor &cu_seqlens,  // b+1
-        const float p_dropout,
-        const int max_seq_len,
-        const float softmax_scale,
-        const bool zero_tensors,
-        const bool is_causal,
-        const bool return_softmax,
-        c10::optional<at::Generator> gen_) {
+static void SetPhiloxCudaState(at::PhiloxCudaState *state, SeedIncFuncPtr seed_inc_func, uint64_t increment) {
+    uint64_t rnd_seed;
+    const int64_t *offset_ptr;
+    uint64_t rnd_offset;
+    bool is_device_rnd;
+    seed_inc_func(increment, &rnd_seed, &offset_ptr, &rnd_offset, &is_device_rnd);
+    if (is_device_rnd) {
+        *state = at::PhiloxCudaState(rnd_seed, const_cast<int64_t *>(offset_ptr), static_cast<uint32_t>(rnd_offset));
+    } else {
+        *state = at::PhiloxCudaState(rnd_seed, rnd_offset);
+    }
+}
 
-    auto dprops = at::cuda::getCurrentDeviceProperties();
-    TORCH_CHECK(dprops->major == 8 && dprops->minor >= 0);
-    auto stream = at::cuda::getCurrentCUDAStream().stream();
-    bool is_dropout = p_dropout > 0.0;
-    Launch_params<Fused_multihead_attention_fprop_params> launch_params(dprops, stream, is_dropout, return_softmax);
+static cudaDeviceProp g_prop;
 
-    TORCH_CHECK(qkv.is_cuda())
-    TORCH_CHECK(cu_seqlens.is_cuda())
+static cudaDeviceProp *GetCurrentDeviceProperties() {
+    static std::once_flag flag;   
+    std::call_once(flag, [] {
+      int dev_id;
+      TORCH_CHECK(cudaGetDevice(&dev_id) == cudaSuccess);
+      TORCH_CHECK(cudaGetDeviceProperties(&g_prop, dev_id) == cudaSuccess);
+    });
+    return &g_prop;
+}   
 
-    TORCH_CHECK(qkv.is_contiguous())
-    TORCH_CHECK(cu_seqlens.is_contiguous())
+static void SetZero(void *ptr, size_t sizeof_type, std::initializer_list<int> shapes, cudaStream_t stream) {
+    size_t n = sizeof_type;
+    for (int s : shapes) n *= s;
+    TORCH_CHECK(cudaMemsetAsync(ptr, 0, n, stream) == cudaSuccess); 
+}
 
-    TORCH_CHECK(cu_seqlens.dim() == 1);
-    TORCH_CHECK(qkv.dim() == 4);
+template <typename T>
+static __global__ void FillConstantKernel(T *ptr, T value, size_t n) {
+  auto idx = static_cast<size_t>(blockDim.x) * blockIdx.x + threadIdx.x;
+  if (idx < n) {
+    ptr[idx] = value;
+  }
+} 
 
-    const auto sizes = qkv.sizes();
+template <typename T>
+static void SetConstValue(void *ptr, T value, size_t n, cudaStream_t stream) {
+  constexpr auto kNumThreads = 1024;
+  auto block = (n + kNumThreads - 1) / kNumThreads; 
+  FillConstantKernel<T><<<block, kNumThreads, 0, stream>>>(static_cast<T *>(ptr), value, n);
+} 
 
-    TORCH_CHECK(sizes[THREE_DIM] == 3);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-    const int batch_size = cu_seqlens.numel() - 1;
-    const int total = sizes[TOTAL_DIM];
-    const int num_heads = sizes[H_DIM];
-    const int head_size = sizes[D_DIM];
+int flash_attn_seq_len(int head_size, int max_seq_len, int *base_N_ptr) {
+    int base_N = head_size == 128 ? 128 : 256;
+    if (base_N_ptr) *base_N_ptr = base_N;
+    if( max_seq_len <= 128 ) { 
+        return 128;
+    } else if( max_seq_len <= 256 ) { 
+        return 256;
+    } else {
+        return ((max_seq_len + base_N - 1) / base_N) * base_N;
+    } 
+}
+
+// qkv_ptr: FP16, [total, num_heads, 3, head_size]
+// cu_seqlens_ptr: INT32, [batch_size + 1]
+// ctx_ptr: FP16, [total, num_heads, head_size]
+// softmax_lse_ptr: FP32, [batch_size, num_heads, seq_len]   
+// softmax_ptr: FP16, [batch_size, num_heads, seq_len, seq_len]
+// workspace_ptr: FP32, [total, num_heads, head_size] 
+void flash_attn_fwd(const void *qkv_ptr, const void *cu_seqlens_ptr, 
+                    const int total, const int batch_size, const int num_heads, 
+                    const int head_size, const int max_seq_len, 
+                    const bool is_training, const bool zero_tensors, const bool is_causal,
+                    const float p_dropout, const float softmax_scale, SeedIncFuncPtr seed_inc_func,
+                    cudaStream_t stream, void *ctx_ptr, void *softmax_lse_ptr,
+                    void *softmax_ptr, void *workspace_ptr, uint64_t *workspace_size) { 
+    FMHALIB_BEGIN_FUNC             
     TORCH_CHECK(batch_size > 0);
     TORCH_CHECK(head_size == 16 || head_size == 32 || head_size == 64 || head_size == 128);
-
-    // int base_N = head_size == 16 ? 512 : (head_size == 128 ? 128 : 256);
-    int base_N = head_size == 128 ? 128 : 256;
-    int seq_len = 512;
-    if( max_seq_len <= 128 ) {
-        seq_len = 128;
-    } else if( max_seq_len <= 256 ) {
-        seq_len = 256;
-    } else {
-        seq_len = ((max_seq_len + base_N - 1) / base_N) * base_N;
-    }
+    
+    int base_N;
+    int seq_len = flash_attn_seq_len(head_size, max_seq_len, &base_N);
     bool loop = seq_len > base_N;
-
-    auto opts = qkv.options();
-
-    auto ctx = torch::empty({ total, num_heads, head_size }, opts);
-
-    at::Tensor o_tmp;
-    if (loop) {
-        o_tmp = torch::empty({total, num_heads, head_size}, opts.dtype(at::kFloat));
+    if (ctx_ptr == nullptr) {
+        *workspace_size = loop ? uint64_t(total) * num_heads * head_size * sizeof(float): 0; 
+        return; 
     }
 
-    auto softmax_lse = torch::empty({batch_size, num_heads, seq_len}, opts.dtype(at::kFloat));
-    // auto softmax_lse = torch::full({batch_size, num_heads, seq_len}, -std::numeric_limits<float>::infinity(), opts.dtype(at::kFloat));
-
-    at::Tensor s;
-    if (return_softmax) {
-        s = torch::empty({ batch_size, num_heads, seq_len, seq_len }, opts);
-        // s = torch::ones({ batch_size, num_heads, seq_len, seq_len }, opts) * 10000.0;
+    auto dprops = GetCurrentDeviceProperties();   
+    TORCH_CHECK(dprops->major == 8 && dprops->minor >= 0);
+    bool is_dropout;
+    if (is_training) {
+      TORCH_CHECK(p_dropout > 0.0);
+      is_dropout = true;
+    } else {
+      is_dropout = false;
     }
+    const bool return_softmax = (softmax_ptr != nullptr);
+    Launch_params<Fused_multihead_attention_fprop_params> launch_params(dprops, stream, is_dropout, return_softmax);
+
+    void *o_tmp_ptr = workspace_ptr;
 
     if( zero_tensors ) {
-        ctx.zero_();
-        softmax_lse.fill_(-std::numeric_limits<float>::infinity());
-        if (loop) { o_tmp.zero_(); }
-        if (return_softmax) {s.zero_();}
+        SetZero(ctx_ptr, 2, {total, num_heads, head_size}, stream); 
+        SetConstValue<float>(softmax_lse_ptr, -std::numeric_limits<float>::infinity(), uint64_t(batch_size) * num_heads * seq_len, stream);   
+        if (loop) SetZero(o_tmp_ptr, 4, {total, num_heads, head_size}, stream);
+        if (return_softmax) SetZero(softmax_ptr, 2, {batch_size, num_heads, seq_len, seq_len}, stream);  
     }
-
-    auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
-        gen_, at::cuda::detail::getDefaultCUDAGenerator());
-
 
     set_params(launch_params.params,
                batch_size,
                seq_len,
                num_heads,
                head_size,
-               qkv.data_ptr(),
-               cu_seqlens.data_ptr(),
-               ctx.data_ptr(),
-               loop ? o_tmp.data_ptr() : nullptr,
+               const_cast<void*>(qkv_ptr),
+               const_cast<void*>(cu_seqlens_ptr),
+               ctx_ptr,
+               loop ? o_tmp_ptr : nullptr,
                nullptr,
-               return_softmax ? s.data_ptr() : nullptr,
-               softmax_lse.data_ptr(),
+               return_softmax ? softmax_ptr : nullptr,
+               softmax_lse_ptr,
                nullptr,
                p_dropout,
                softmax_scale,
@@ -208,93 +292,56 @@ mha_fwd(const at::Tensor &qkv,         // total x num_heads x 3 x head_size, tot
 
     if( is_dropout ) {
         // See Note [Acquire lock when using random generators]
-        std::lock_guard<std::mutex> lock(gen->mutex_);
-        launch_params.params.philox_args = gen->philox_cuda_state(counter_offset);
+        SetPhiloxCudaState(&rng_engine_inputs, seed_inc_func, counter_offset); 
     }
 
     run_fmha_fp16_sm80(launch_params, /*configure=*/false);
-
-    std::vector<at::Tensor> result = {ctx, softmax_lse};
-    if (return_softmax) {result.push_back(s);}
-    return result;
+    FMHALIB_END_FUNC
 }
 
+// qkv_ptr: FP16, [total, num_heads, 3, head_size]
+// cu_seqlens_ptr: INT32, [batch_size + 1]
+// ctx_ptr: FP16, [total, num_heads, head_size]
+// softmax_lse_ptr: FP32, [batch_size, num_heads, seq_len]   
+// softmax_ptr: FP16, [batch_size, num_heads, seq_len, seq_len]
+// workspace_ptr: FP32, [total, num_heads, head_size] 
+// dctx_ptr: FP16, [total, num_heads, head_size]
+void flash_attn_bwd(const void *dctx_ptr, const void *qkv_ptr, const void *ctx_ptr, 
+                    const void *softmax_ptr, const void *softmax_lse_ptr, 
+                    const void *cu_seqlens_ptr, 
+                    const int total, const int batch_size, const int num_heads, 
+                    const int head_size, const int max_seq_len, 
+                    const bool zero_tensors, const bool is_causal,
+                    const float p_dropout, const float softmax_scale, SeedIncFuncPtr seed_inc_func,
+                    cudaStream_t stream, void *dqkv_ptr, void *workspace_ptr, uint64_t *workspace_size) { 
+    FMHALIB_BEGIN_FUNC
+    int base_N;
+    int seq_len = flash_attn_seq_len(head_size, max_seq_len, &base_N);
+    bool loop = seq_len > base_N;
+    if (dqkv_ptr == nullptr) {
+      *workspace_size = uint64_t(batch_size) * num_heads * seq_len * sizeof(float);    
+      if (loop) {
+        (*workspace_size) += uint64_t(total) * num_heads * head_size * sizeof(float);
+      }
+      return;
+    }
 
-std::vector<at::Tensor>
-mha_bwd(const at::Tensor &dout,  // total x num_heads, x head_size
-        const at::Tensor &qkv,   // total x num_heads x 3 x head_size, total := \sum_{i=0}^{b} s_i
-        const at::Tensor &out,   // total x num_heads x head_size
-        at::Tensor &softmax,     // b x h x s x s softmax and dmask - will be overwritten with dP
-        const at::Tensor &softmax_lse,     // b x h x s softmax logsumexp
-        const at::Tensor &cu_seqlens,  // b+1
-        const float p_dropout,         // probability to drop
-        const float softmax_scale,
-        const int max_seq_len,          // max sequence length to choose the kernel
-        const bool zero_tensors,
-        const bool is_causal,
-        c10::optional<at::Generator> gen_
-) {
-    auto dprops = at::cuda::getCurrentDeviceProperties();
+    auto dprops = GetCurrentDeviceProperties();
     TORCH_CHECK(dprops->major == 8 && dprops->minor >= 0);
     auto launch = &run_fmha_dgrad_fp16_sm80;
 
     bool is_dropout = p_dropout > 0.0;
-    auto stream = at::cuda::getCurrentCUDAStream().stream();
 
-    TORCH_CHECK(qkv.dtype() == torch::kFloat16);
-    TORCH_CHECK(dout.dtype() == torch::kFloat16);
-    TORCH_CHECK(softmax.dtype() == torch::kFloat16);
-    TORCH_CHECK(cu_seqlens.dtype() == torch::kInt32);
-
-    TORCH_CHECK(qkv.is_cuda());
-    TORCH_CHECK(cu_seqlens.is_cuda());
-
-    TORCH_CHECK(qkv.is_contiguous());
-    TORCH_CHECK(cu_seqlens.is_contiguous());
-
-    TORCH_CHECK(cu_seqlens.dim() == 1);
-    TORCH_CHECK(qkv.dim() == 4);
-
-    const auto sizes = qkv.sizes();
-
-    TORCH_CHECK(sizes[THREE_DIM] == 3);
-
-    const int batch_size = cu_seqlens.numel() - 1;
-    const int total = sizes[TOTAL_DIM];
-    const int num_heads = sizes[H_DIM];
-    const int head_size = sizes[D_DIM];
     TORCH_CHECK(batch_size > 0);
-    TORCH_CHECK(head_size == 16 || head_size == 32 || head_size == 64 || head_size == 128);
+    TORCH_CHECK(head_size == 16 || head_size == 32 || head_size == 64 || head_size == 128); 
 
-    // int base_N = head_size == 16 ? 512 : (head_size == 128 ? 128 : 256);
-    int base_N = head_size == 128 ? 128 : 256;
-    int seq_len = 512;
-    if( max_seq_len <= 128 ) {
-        seq_len = 128;
-    } else if( max_seq_len <= 256 ) {
-        seq_len = 256;
-    } else {
-        seq_len = ((max_seq_len + base_N - 1) / base_N) * base_N;
-    }
-    bool loop = seq_len > base_N;
-
-    auto dqkv = torch::empty_like(qkv);
-    auto opts = qkv.options();
-    // auto softmax_lse =
-    //     torch::empty({batch_size, num_heads, seq_len}, opts.dtype(at::kFloat));
-    auto softmax_d = torch::empty({batch_size, num_heads, seq_len}, opts.dtype(at::kFloat));
-    // softmax.zero_();
-    // torch::nn::init::ones_(softmax);
-    // torch::nn::init::ones_(dqkv);
-    at::Tensor dq_tmp;
-    if (loop) {
-        dq_tmp = torch::empty({total, num_heads, head_size}, opts.dtype(at::kFloat));
-    }
+    auto *softmax_d_ptr = reinterpret_cast<float *>(workspace_ptr); 
+    auto *dq_tmp_ptr = loop ? softmax_d_ptr + uint64_t(batch_size) * num_heads * seq_len : nullptr;
 
     if( zero_tensors ) {
-        dqkv.zero_();
-        softmax_d.zero_();
-        if (loop) { dq_tmp.zero_(); }
+        SetZero(dqkv_ptr,  2, {total, num_heads, 3, head_size}, stream);
+        SetZero(softmax_d_ptr, 4, {batch_size, num_heads, seq_len}, stream);
+        if (loop) SetZero(dq_tmp_ptr, 4, {total, num_heads, head_size}, stream);
     }
 
     Fused_multihead_attention_fprop_params params;
@@ -304,45 +351,33 @@ mha_bwd(const at::Tensor &dout,  // total x num_heads, x head_size
                seq_len,
                num_heads,
                head_size,
-               qkv.data_ptr(),
-               cu_seqlens.data_ptr(),
-               out.data_ptr(),
-               loop ? dq_tmp.data_ptr() : nullptr,
-               dout.data_ptr(),
-               softmax.data_ptr(),  // softmax gets overwritten by dP!
-               softmax_lse.data_ptr(),
-               softmax_d.data_ptr(),
+               const_cast<void *>(qkv_ptr),
+               const_cast<void *>(cu_seqlens_ptr),
+               const_cast<void *>(ctx_ptr),
+               loop ? dq_tmp_ptr : nullptr,
+               const_cast<void *>(dctx_ptr),
+               const_cast<void *>(softmax_ptr),  // softmax gets overwritten by dP!
+               const_cast<void *>(softmax_lse_ptr),
+               softmax_d_ptr,
                p_dropout,
                softmax_scale,
                is_causal);
 
-    auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
-        gen_, at::cuda::detail::getDefaultCUDAGenerator());
-
     // We're gonna reset the rng state in Python after this kernel, so the counter offset
     // here doesn't matter at all. We just choose an arbitrary number;
     int64_t counter_offset = 4;
+    at::PhiloxCudaState rng_engine_inputs;
 
     if( is_dropout ) {
         // See Note [Acquire lock when using random generators]
-        std::lock_guard<std::mutex> lock(gen->mutex_);
-        params.philox_args = gen->philox_cuda_state(counter_offset);
+        SetPhiloxCudaState(&rng_engine_inputs, seed_inc_func, counter_offset);
     }
 
-    Data_type acc_type = DATA_TYPE_FP32;
-    params.dqkv_ptr = dqkv.data_ptr();
-
+    params.dqkv_ptr = dqkv_ptr;
     launch(params, stream);
-    return { dqkv, softmax, softmax_d };
-    // std::vector<at::Tensor> result = {dqkv, softmax, softmax_d};
-    // if (loop) {
-    //   result.push_back(dq_tmp);
-    // }
-    // return result;
+    FMHALIB_END_FUNC
 }
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-    m.doc() = "Fused Multi-head Self-attention";
-    m.def("fwd", &mha_fwd, "Forward pass");
-    m.def("bwd", &mha_bwd, "Backward pass");
+#ifdef __cplusplus
 }
+#endif

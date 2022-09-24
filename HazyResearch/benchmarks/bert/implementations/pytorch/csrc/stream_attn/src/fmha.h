@@ -30,15 +30,8 @@
 #include <cuda.h>
 #include <vector>
 
-#ifdef OLD_GENERATOR_PATH
-#include <ATen/CUDAGeneratorImpl.h>
-#else
-#include <ATen/cuda/CUDAGeneratorImpl.h>
-#endif
-
-#include <ATen/cuda/CUDAGraphsUtils.cuh>
-
 #include <fmha_utils.h>
+#include "philox.cuh"
 
 
 constexpr int TOTAL_DIM = 0;

@@ -53,6 +53,10 @@ struct BlockInfoPadded {
         // The block index.
         sum_s = params.cu_seqlens[bidb];
         actual_seqlen = params.cu_seqlens[bidb + 1] - sum_s;
+
+        // comment this line if params.cu_seqlens[0] is always 0
+        sum_s -= params.cu_seqlens[0];
+
         bidx = sum_s * params.h + bidh;
 
         tidx_global = (bidb * params.h + bidh) * THREADS_PER_CTA + tidx;
